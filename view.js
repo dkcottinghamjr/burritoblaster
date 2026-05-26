@@ -12,18 +12,51 @@ const View = (() => {
   function init(canvasEl) {
     canvas = canvasEl;
     ctx = canvas.getContext('2d');
+
+    // Seed a sane backing buffer before layout reports real CSS size.
+    const dpr0 = Math.min(CONFIG.render.maxDPR, window.devicePixelRatio || 1);
+    canvas.width = CONFIG.canvas.width * dpr0;
+    canvas.height = CONFIG.canvas.height * dpr0;
+    requestAnimationFrame(resize);
+
+    if (window.ResizeObserver) {
+      const ro = new ResizeObserver(resize);
+      ro.observe(canvas);
+    } else {
+      window.addEventListener('resize', resize);
+      window.addEventListener('orientationchange', () => setTimeout(resize, 200));
+    }
+  }
+
+  function resize() {
+    // Match backing-store to the canvas's actual CSS size × capped DPR.
+    // This avoids over-rendering on phones whose stage is much smaller
+    // than the 1200×650 world.
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(CONFIG.render.maxDPR, window.devicePixelRatio || 1);
+    const cssW = rect.width || CONFIG.canvas.width;
+    const cssH = rect.height || CONFIG.canvas.height;
+    const newW = Math.max(1, Math.round(cssW * dpr));
+    const newH = Math.max(1, Math.round(cssH * dpr));
+    if (canvas.width !== newW) canvas.width = newW;
+    if (canvas.height !== newH) canvas.height = newH;
   }
 
   function render() {
     const w = CONFIG.canvas.width;
     const h = CONFIG.canvas.height;
-    ctx.save();
+
+    // World coords (1200×650) -> backing buffer pixels.
+    const sx = canvas.width / w;
+    const sy = canvas.height / h;
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
     ctx.clearRect(0, 0, w, h);
 
+    ctx.save();
     if (shake.time > 0) {
-      const sx = (Math.random() - 0.5) * shake.magnitude;
-      const sy = (Math.random() - 0.5) * shake.magnitude;
-      ctx.translate(sx, sy);
+      const ssx = (Math.random() - 0.5) * shake.magnitude;
+      const ssy = (Math.random() - 0.5) * shake.magnitude;
+      ctx.translate(ssx, ssy);
       shake.time -= 1000 / 60;
       if (shake.time <= 0) { shake.time = 0; shake.magnitude = 0; }
     }
@@ -289,6 +322,9 @@ const View = (() => {
         size: cfg.sizeMin + Math.random() * (cfg.sizeMax - cfg.sizeMin),
         color: colors[Math.floor(Math.random() * colors.length)],
       });
+    }
+    if (particles.length > cfg.maxOnscreen) {
+      particles.splice(0, particles.length - cfg.maxOnscreen);
     }
   }
 

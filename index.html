@@ -2,7 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#2a1208" />
   <title>Burrito Blaster</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -14,101 +18,152 @@
       --accent: #fff45a;
       --accent-2: #ff5a3c;
       --ink: #2a0a04;
+      --safe-t: env(safe-area-inset-top, 0px);
+      --safe-r: env(safe-area-inset-right, 0px);
+      --safe-b: env(safe-area-inset-bottom, 0px);
+      --safe-l: env(safe-area-inset-left, 0px);
     }
-    * { box-sizing: border-box; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     html, body {
+      position: fixed;
+      inset: 0;
       margin: 0;
       padding: 0;
-      height: 100%;
       background: radial-gradient(ellipse at top, var(--bg-2) 0%, var(--bg-1) 70%);
       font-family: 'Fredoka', system-ui, sans-serif;
       color: #fff;
       overflow: hidden;
       user-select: none;
       -webkit-user-select: none;
+      -webkit-touch-callout: none;
       touch-action: none;
+      overscroll-behavior: none;
     }
+
     #app {
-      width: 100%;
-      height: 100%;
+      position: fixed;
+      inset: 0;
+      padding: var(--safe-t) var(--safe-r) var(--safe-b) var(--safe-l);
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 10px;
-      padding: 12px;
     }
+
+    /* Stage = aspect-correct frame around the canvas. Fits to either
+       viewport width or height, whichever constrains harder. */
+    #stage {
+      position: relative;
+      width: min(100%, calc((100dvh - var(--safe-t) - var(--safe-b)) * 1200 / 650));
+      max-width: 100%;
+      aspect-ratio: 1200 / 650;
+      border-radius: clamp(0px, 1.4vw, 16px);
+      overflow: hidden;
+      box-shadow: 0 8px 0 #5a1a0a, 0 0 0 4px #ffd55a, 0 0 0 8px rgba(0,0,0,0.25);
+      background: #ffe29a;
+    }
+
+    canvas#game {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    /* HUD overlays the top of the canvas. Fades to transparent so the
+       sky shows through. */
     #hud {
-      width: min(1200px, 100%);
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
       display: flex;
       justify-content: space-between;
-      align-items: center;
-      padding: 10px 18px;
-      background: linear-gradient(180deg, rgba(255, 90, 60, 0.92), rgba(170, 40, 25, 0.92));
-      border: 3px solid #ffd55a;
-      border-radius: 14px;
-      box-shadow: 0 4px 0 #5a1a0a, 0 0 0 4px rgba(0,0,0,0.25) inset;
+      align-items: flex-start;
+      padding: clamp(6px, 1.5vw, 14px);
+      gap: 8px;
+      z-index: 5;
+      background: linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0) 100%);
+      pointer-events: none;
+      font-family: 'Bangers', 'Impact', sans-serif;
     }
     .hud-side {
       display: flex;
       align-items: center;
-      gap: 10px;
-      min-width: 200px;
+      gap: 8px;
+      min-width: 0;
+      flex: 0 0 auto;
     }
     .hud-side.right { justify-content: flex-end; }
-    .hud-label {
-      font-family: 'Bangers', 'Impact', sans-serif;
-      letter-spacing: 1px;
+    .hud-side .pill {
+      background: rgba(20, 8, 4, 0.55);
+      border: 2px solid #ffd55a;
+      border-radius: 999px;
+      padding: 4px 12px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: clamp(16px, 2.4vw, 24px);
       color: #fff45a;
-      font-size: 20px;
       text-shadow: 2px 2px 0 #5a1a0a;
+      line-height: 1;
     }
-    .hud-value {
-      font-family: 'Bangers', 'Impact', sans-serif;
-      font-size: 30px;
-      color: #ffffff;
-      text-shadow: 2px 2px 0 #5a1a0a;
-      min-width: 30px;
-      text-align: center;
+    .hud-side .pill .label {
+      font-size: clamp(10px, 1.4vw, 14px);
+      color: #ffeec7;
+      letter-spacing: 1px;
     }
-    .hud-emoji { font-size: 26px; }
+    .hud-emoji { font-size: clamp(16px, 2.4vw, 24px); }
     .hud-center {
+      flex: 1 1 auto;
       display: flex;
       flex-direction: column;
       align-items: center;
       gap: 2px;
+      min-width: 0;
     }
     .hud-title {
-      font-family: 'Bangers', 'Impact', sans-serif;
-      font-size: 32px;
+      font-size: clamp(18px, 3.4vw, 30px);
       letter-spacing: 3px;
       color: #fff45a;
       text-shadow: 3px 3px 0 #5a1a0a, 0 0 18px rgba(255, 244, 90, 0.6);
       line-height: 1;
+      white-space: nowrap;
     }
     .hud-level {
-      font-family: 'Bangers', 'Impact', sans-serif;
-      font-size: 16px;
+      font-size: clamp(11px, 1.6vw, 16px);
       letter-spacing: 2px;
       color: #ffeec7;
       text-shadow: 2px 2px 0 #5a1a0a;
+      text-align: center;
+      max-width: 60vw;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
-    #stage {
-      position: relative;
-      width: min(1200px, 100%);
-      aspect-ratio: 1200 / 650;
+    .menu-btn {
+      pointer-events: auto;
+      width: clamp(40px, 6vw, 52px);
+      height: clamp(40px, 6vw, 52px);
+      font-size: clamp(20px, 3vw, 26px);
+      font-family: 'Bangers', 'Impact', sans-serif;
+      background: rgba(20, 8, 4, 0.55);
+      color: #fff45a;
+      border: 2px solid #ffd55a;
+      border-radius: 12px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 0 #5a1a0a;
+      transition: transform 80ms ease, box-shadow 80ms ease;
     }
-    canvas#game {
-      width: 100%;
-      height: 100%;
-      display: block;
-      border: 4px solid #ffd55a;
-      border-radius: 16px;
-      box-shadow: 0 8px 0 #5a1a0a, 0 0 0 6px rgba(0,0,0,0.25);
-      background: #ffe29a;
-      cursor: crosshair;
-    }
-    #overlay {
+    .menu-btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #5a1a0a; }
+
+    /* Modal overlays (win/lose card + level menu) */
+    .modal {
       position: absolute;
       inset: 0;
       display: flex;
@@ -116,60 +171,63 @@
       justify-content: center;
       background: rgba(20, 8, 4, 0.55);
       backdrop-filter: blur(2px);
-      border-radius: 16px;
-      transition: opacity 200ms ease;
+      -webkit-backdrop-filter: blur(2px);
+      z-index: 20;
+      padding: 4vh 4vw;
+      transition: opacity 180ms ease;
     }
-    #overlay.hidden {
-      opacity: 0;
-      pointer-events: none;
-    }
+    .modal.hidden { opacity: 0; pointer-events: none; }
+
     .card {
       background: linear-gradient(180deg, #ff7a3c, #a8121a);
       border: 4px solid #ffd55a;
-      border-radius: 22px;
-      padding: 30px 50px;
+      border-radius: 18px;
+      padding: clamp(18px, 3vw, 28px) clamp(22px, 4vw, 44px);
       text-align: center;
       box-shadow: 0 10px 0 #3a0a04, 0 0 0 4px rgba(0,0,0,0.2) inset;
-      max-width: 420px;
+      max-width: min(440px, 92%);
+      max-height: 92%;
+      overflow: auto;
     }
     .card h1 {
       font-family: 'Bangers', 'Impact', sans-serif;
-      font-size: 46px;
+      font-size: clamp(28px, 5vw, 44px);
       letter-spacing: 2px;
       color: #fff45a;
-      margin: 0 0 14px 0;
+      margin: 0 0 10px 0;
       text-shadow: 3px 3px 0 #5a1a0a;
     }
     .stars {
-      font-size: 56px;
+      font-size: clamp(36px, 7vw, 56px);
       color: #fff45a;
       letter-spacing: 6px;
-      margin: 6px 0 14px 0;
+      margin: 4px 0 10px 0;
       text-shadow: 2px 2px 0 #5a1a0a;
     }
     .card p {
-      margin: 0 0 8px 0;
-      font-size: 18px;
+      margin: 0 0 6px 0;
+      font-size: clamp(14px, 2vw, 18px);
       color: #ffeec7;
     }
     .card .hint {
-      margin: 0 0 22px 0;
-      font-size: 14px;
+      margin: 0 0 18px 0;
+      font-size: clamp(12px, 1.8vw, 14px);
       color: #ffd55a;
       letter-spacing: 1px;
       font-style: italic;
     }
-    .card .buttons {
+    .buttons {
       display: flex;
-      gap: 14px;
+      gap: 12px;
       justify-content: center;
       flex-wrap: wrap;
     }
     .card button {
       font-family: 'Bangers', 'Impact', sans-serif;
-      font-size: 26px;
+      font-size: clamp(18px, 2.8vw, 26px);
       letter-spacing: 3px;
-      padding: 12px 28px;
+      padding: clamp(10px, 1.6vw, 14px) clamp(20px, 3vw, 32px);
+      min-height: 48px; /* iOS recommended min touch target */
       color: #2a0a04;
       background: linear-gradient(180deg, #ffd55a, #f4a019);
       border: 3px solid #5a1a0a;
@@ -178,40 +236,162 @@
       box-shadow: 0 5px 0 #5a1a0a;
       transition: transform 80ms ease, box-shadow 80ms ease;
     }
-    .card button:hover { transform: translateY(-2px); box-shadow: 0 7px 0 #5a1a0a; }
     .card button:active { transform: translateY(3px); box-shadow: 0 2px 0 #5a1a0a; }
     .card button#nextBtn {
       background: linear-gradient(180deg, #9ee85a, #4a9e1a);
       color: #14280a;
     }
-    .footer {
-      font-size: 12px;
-      color: rgba(255, 244, 90, 0.6);
-      letter-spacing: 1px;
+
+    /* Levels menu list */
+    #levelList {
+      list-style: none;
+      margin: 4px 0 18px 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .level-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      min-height: 48px;
+      background: rgba(255, 213, 90, 0.18);
+      border: 2px solid rgba(255, 213, 90, 0.5);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 100ms ease, transform 80ms ease;
+    }
+    .level-row:active { transform: scale(0.98); background: rgba(255, 213, 90, 0.32); }
+    .level-row.current {
+      border-color: #fff45a;
+      background: rgba(255, 244, 90, 0.22);
+    }
+    .level-num {
+      font-family: 'Bangers', 'Impact', sans-serif;
+      color: #fff45a;
+      font-size: 22px;
+      width: 28px;
+      text-align: center;
+      text-shadow: 2px 2px 0 #5a1a0a;
+    }
+    .level-name {
+      font-family: 'Bangers', 'Impact', sans-serif;
+      font-size: 18px;
+      letter-spacing: 1.5px;
+      color: #fff;
+      text-shadow: 2px 2px 0 #5a1a0a;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .level-stars {
+      font-size: 18px;
+      color: #fff45a;
+      text-shadow: 1px 1px 0 #5a1a0a;
+      letter-spacing: 2px;
+    }
+
+    /* Portrait rotate prompt — only on small portrait viewports */
+    #rotatePrompt {
+      display: none;
+      position: fixed;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      text-align: center;
+      padding: 24px;
+      background: radial-gradient(ellipse at top, var(--bg-2), var(--bg-1));
+      z-index: 100;
+    }
+    .rotate-card {
+      background: linear-gradient(180deg, #ff7a3c, #a8121a);
+      border: 4px solid #ffd55a;
+      border-radius: 20px;
+      padding: 28px 24px;
+      max-width: 340px;
+      box-shadow: 0 10px 0 #3a0a04;
+    }
+    .rotate-icon {
+      font-size: 58px;
+      animation: rotateNudge 2s ease-in-out infinite;
+      transform-origin: center;
+      display: inline-block;
+      margin-bottom: 10px;
+    }
+    @keyframes rotateNudge {
+      0%, 50%, 100% { transform: rotate(0deg); }
+      20% { transform: rotate(-15deg); }
+      30% { transform: rotate(-90deg); }
+      40% { transform: rotate(-90deg); }
+    }
+    .rotate-card h2 {
+      font-family: 'Bangers', 'Impact', sans-serif;
+      font-size: 28px;
+      letter-spacing: 2px;
+      color: #fff45a;
+      margin: 6px 0 8px 0;
+      text-shadow: 3px 3px 0 #5a1a0a;
+    }
+    .rotate-card p {
+      margin: 0;
+      font-size: 15px;
+      color: #ffeec7;
+    }
+
+    @media (orientation: portrait) and (max-width: 900px) {
+      #app { display: none; }
+      #rotatePrompt { display: flex; }
+    }
+
+    /* Very small screens: tighten the HUD even more so it doesn't crowd the burrito */
+    @media (max-width: 480px) {
+      .hud-title { display: none; }
+      .hud-level { font-size: 12px; }
+      #hud { padding: 6px 8px; }
+      .hud-side .pill { padding: 3px 8px; }
     }
   </style>
 </head>
 <body>
-  <div id="app">
-    <header id="hud">
-      <div class="hud-side left">
-        <span class="hud-label">BURRITOS</span>
-        <span id="burritosLeft" class="hud-value">3</span>
-        <span class="hud-emoji">🌯</span>
-      </div>
-      <div class="hud-center">
-        <div class="hud-title">BURRITO BLASTER</div>
-        <div id="levelLabel" class="hud-level">LEVEL 1 / 5</div>
-      </div>
-      <div class="hud-side right">
-        <span class="hud-label">BEST</span>
-        <span id="bestStars" class="hud-value">☆☆☆</span>
-      </div>
-    </header>
+  <div id="rotatePrompt">
+    <div class="rotate-card">
+      <div class="rotate-icon">📱</div>
+      <h2>Rotate to play</h2>
+      <p>Burrito Blaster lives in landscape. Turn your device sideways.</p>
+    </div>
+  </div>
 
+  <div id="app">
     <div id="stage">
       <canvas id="game" width="1200" height="650"></canvas>
-      <div id="overlay" class="hidden">
+
+      <header id="hud">
+        <div class="hud-side left">
+          <div class="pill">
+            <span class="label">BURRITOS</span>
+            <span id="burritosLeft">3</span>
+            <span class="hud-emoji">🌯</span>
+          </div>
+        </div>
+        <div class="hud-center">
+          <div class="hud-title">BURRITO BLASTER</div>
+          <div id="levelLabel" class="hud-level">LEVEL 1 / 5</div>
+        </div>
+        <div class="hud-side right">
+          <div class="pill">
+            <span class="label">BEST</span>
+            <span id="bestStars">☆☆☆</span>
+          </div>
+          <button id="menuBtn" class="menu-btn" aria-label="Levels menu">☰</button>
+        </div>
+      </header>
+
+      <div id="overlay" class="modal hidden">
         <div class="card">
           <h1 id="overlayTitle">Level Complete</h1>
           <div id="overlayStars" class="stars">★★★</div>
@@ -223,9 +403,17 @@
           </div>
         </div>
       </div>
-    </div>
 
-    <div class="footer">Drag the burrito · Release to fire · [R]etry · [N]ext · [1-5] jump</div>
+      <div id="menuOverlay" class="modal hidden">
+        <div class="card">
+          <h1>LEVELS</h1>
+          <ul id="levelList"></ul>
+          <div class="buttons">
+            <button id="menuCloseBtn">CLOSE</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>

@@ -7,9 +7,13 @@ const Controller = (() => {
   let canvas;
   let running = false;
   let aiming = false;
+  let activePointerId = null;
   let currentLevel = 0;
   let bestStarsByLevel = {};
   let overlayShownFor = null;
+  let accumulator = 0;
+  let lastTime = 0;
+  const FIXED_DT = 1000 / 60;
   const ui = {};
 
   function init(canvasEl) {
@@ -25,6 +29,10 @@ const Controller = (() => {
     ui.overlayHint = document.getElementById('overlayHint');
     ui.retryBtn = document.getElementById('retryBtn');
     ui.nextBtn = document.getElementById('nextBtn');
+    ui.menuBtn = document.getElementById('menuBtn');
+    ui.menuOverlay = document.getElementById('menuOverlay');
+    ui.menuCloseBtn = document.getElementById('menuCloseBtn');
+    ui.levelList = document.getElementById('levelList');
 
     bestStarsByLevel = loadBest();
     currentLevel = clampLevel(loadProgress());
@@ -40,27 +48,14 @@ const Controller = (() => {
       saveProgress(target);
       restartGame(target);
     });
+    ui.menuBtn.addEventListener('click', openMenu);
+    ui.menuCloseBtn.addEventListener('click', closeMenu);
+    ui.menuOverlay.addEventListener('click', e => {
+      if (e.target === ui.menuOverlay) closeMenu();
+    });
 
-    canvas.addEventListener('mousedown', e => onPointerDown(getPos(e)));
-    window.addEventListener('mousemove', e => onPointerMove(getPos(e)));
-    window.addEventListener('mouseup', onPointerUp);
+    bindPointer();
 
-    canvas.addEventListener('touchstart', e => {
-      if (!e.touches[0]) return;
-      e.preventDefault();
-      onPointerDown(getPos(e.touches[0]));
-    }, { passive: false });
-    canvas.addEventListener('touchmove', e => {
-      if (!e.touches[0]) return;
-      e.preventDefault();
-      onPointerMove(getPos(e.touches[0]));
-    }, { passive: false });
-    canvas.addEventListener('touchend', e => {
-      e.preventDefault();
-      onPointerUp();
-    }, { passive: false });
-
-    // Keyboard shortcuts: R retries, N advances, 1..5 jumps to a level.
     window.addEventListener('keydown', e => {
       if (e.key === 'r' || e.key === 'R') {
         hideOverlay();
@@ -70,6 +65,8 @@ const Controller = (() => {
         hideOverlay();
         saveProgress(next);
         restartGame(next);
+      } else if (e.key === 'Escape') {
+        if (!ui.menuOverlay.classList.contains('hidden')) closeMenu();
       } else if (/^[1-9]$/.test(e.key)) {
         const idx = parseInt(e.key, 10) - 1;
         if (idx >= 0 && idx < Model.getLevelCount()) {
@@ -86,27 +83,64 @@ const Controller = (() => {
 
     updateHUD();
     running = true;
+    lastTime = performance.now();
     requestAnimationFrame(loop);
   }
 
+  function bindPointer() {
+    // Pointer Events: one unified path for mouse, pen and touch. Pointer
+    // capture keeps the drag tracked even if the finger leaves the canvas.
+    canvas.addEventListener('pointerdown', e => {
+      if (activePointerId !== null) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      const handled = onPointerDown(getPos(e));
+      if (handled) {
+        activePointerId = e.pointerId;
+        try { canvas.setPointerCapture(e.pointerId); } catch (_) {}
+        e.preventDefault();
+      }
+    });
+    canvas.addEventListener('pointermove', e => {
+      if (e.pointerId !== activePointerId) return;
+      onPointerMove(getPos(e));
+      e.preventDefault();
+    });
+    const finish = e => {
+      if (e.pointerId !== activePointerId) return;
+      activePointerId = null;
+      try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+      onPointerUp();
+    };
+    canvas.addEventListener('pointerup', finish);
+    canvas.addEventListener('pointercancel', finish);
+    canvas.addEventListener('lostpointercapture', e => {
+      if (e.pointerId === activePointerId) {
+        activePointerId = null;
+        onPointerUp();
+      }
+    });
+  }
+
   function getPos(evt) {
+    // Map CSS pixel coords to world coords (1200x650), regardless of canvas
+    // backing store size or device pixel ratio.
     const rect = canvas.getBoundingClientRect();
-    const scaleX = canvas.width / rect.width;
-    const scaleY = canvas.height / rect.height;
     return {
-      x: (evt.clientX - rect.left) * scaleX,
-      y: (evt.clientY - rect.top) * scaleY,
+      x: (evt.clientX - rect.left) * (CONFIG.canvas.width / rect.width),
+      y: (evt.clientY - rect.top) * (CONFIG.canvas.height / rect.height),
     };
   }
 
   function onPointerDown(p) {
-    if (Model.getState() !== 'READY') return;
+    if (Model.getState() !== 'READY') return false;
     const b = Model.getBurrito();
-    if (!b) return;
+    if (!b) return false;
     const d = Math.hypot(p.x - b.position.x, p.y - b.position.y);
     if (d <= CONFIG.slingshot.pickRadius) {
       aiming = Model.startAim();
+      return aiming;
     }
+    return false;
   }
 
   function onPointerMove(p) {
@@ -226,6 +260,36 @@ const Controller = (() => {
     ui.overlay.classList.add('hidden');
   }
 
+  function openMenu() {
+    renderLevelList();
+    ui.menuOverlay.classList.remove('hidden');
+  }
+
+  function closeMenu() {
+    ui.menuOverlay.classList.add('hidden');
+  }
+
+  function renderLevelList() {
+    ui.levelList.innerHTML = '';
+    CONFIG.levels.forEach((level, i) => {
+      const li = document.createElement('li');
+      li.className = 'level-row' + (i === currentLevel ? ' current' : '');
+      const stars = bestStarsByLevel[i] || 0;
+      li.innerHTML = `
+        <span class="level-num">${i + 1}</span>
+        <span class="level-name">${level.name}</span>
+        <span class="level-stars">${renderStars(stars)}</span>
+      `;
+      li.addEventListener('click', () => {
+        closeMenu();
+        hideOverlay();
+        saveProgress(i);
+        restartGame(i);
+      });
+      ui.levelList.appendChild(li);
+    });
+  }
+
   function restartGame(idx) {
     currentLevel = clampLevel(idx);
     Model.init(currentLevel);
@@ -233,12 +297,30 @@ const Controller = (() => {
     View.clearJuice();
     overlayShownFor = null;
     aiming = false;
+    activePointerId = null;
     updateHUD();
   }
 
+  /**
+   * Main loop. Render runs every animation frame; physics runs in a
+   * fixed-step accumulator so 120Hz/144Hz displays don't simulate at
+   * 2-3x speed. Big gaps (tab background) are clamped to avoid spirals.
+   */
   function loop() {
     if (!running) return;
-    Model.tick();
+    const now = performance.now();
+    let elapsed = now - lastTime;
+    if (elapsed > 250) elapsed = 250;
+    lastTime = now;
+    accumulator += elapsed;
+
+    let steps = 0;
+    while (accumulator >= FIXED_DT && steps < 5) {
+      Model.tick();
+      accumulator -= FIXED_DT;
+      steps++;
+    }
+
     View.render();
     updateHUD();
 

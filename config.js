@@ -32,7 +32,7 @@ const CONFIG = {
     bandWidth: 6,
     postColor: '#7a4422',
     postWidth: 14,
-    pickRadius: 70,
+    pickRadius: 110, // touch-friendly hit area in world pixels
     pepperEmoji: '🌶',
   },
 
@@ -245,6 +245,11 @@ const CONFIG = {
     gravity: 0.35,
     sizeMin: 2,
     sizeMax: 6,
+    maxOnscreen: 260, // cap to keep mobile GPUs happy
+  },
+
+  render: {
+    maxDPR: 2, // cap devicePixelRatio for crisp-but-not-wasteful rendering
   },
 
   screenShake: {
