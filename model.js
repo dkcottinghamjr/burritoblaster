@@ -13,18 +13,25 @@ const Model = (() => {
   let walls = [];
   let ground = null;
   let burritosLeft = 0;
+  let burritosStart = 0;
+  let levelIndex = 0;
   let state = 'READY'; // READY | AIMING | FLYING | WAITING | WIN | LOSE
   let stopFrames = 0;
   let collisionListeners = [];
 
-  function init() {
+  function init(idx = 0) {
+    const clamped = Math.max(0, Math.min(CONFIG.levels.length - 1, idx | 0));
+    levelIndex = clamped;
+    const level = CONFIG.levels[clamped];
+
     engine = Engine.create();
     world = engine.world;
     world.gravity.x = CONFIG.gravity.x;
     world.gravity.y = CONFIG.gravity.y;
     world.gravity.scale = CONFIG.gravity.scale;
 
-    burritosLeft = CONFIG.burrito.startCount;
+    burritosStart = level.burritos;
+    burritosLeft = level.burritos;
     state = 'READY';
     stopFrames = 0;
     collisionListeners = [];
@@ -48,7 +55,7 @@ const Model = (() => {
     ];
     World.add(world, walls);
 
-    CONFIG.blocks.forEach(b => {
+    level.blocks.forEach(b => {
       const mat = CONFIG.blockMaterials[b.type];
       const block = Bodies.rectangle(b.x, b.y, b.w, b.h, {
         density: mat.density,
@@ -62,7 +69,7 @@ const Model = (() => {
       World.add(world, block);
     });
 
-    CONFIG.critics.forEach(c => {
+    level.critics.forEach(c => {
       const critic = Bodies.circle(c.x, c.y, c.radius, {
         density: CONFIG.critic.density,
         friction: CONFIG.critic.friction,
@@ -259,6 +266,10 @@ const Model = (() => {
     getBlocks: () => blocks,
     getCritics: () => critics,
     getBurritosLeft: () => burritosLeft,
+    getBurritosStart: () => burritosStart,
+    getLevelIndex: () => levelIndex,
+    getLevel: () => CONFIG.levels[levelIndex],
+    getLevelCount: () => CONFIG.levels.length,
     getAnchor: () => ({ x: CONFIG.slingshot.anchorX, y: CONFIG.slingshot.anchorY }),
   };
 })();

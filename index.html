@@ -72,12 +72,26 @@
       text-align: center;
     }
     .hud-emoji { font-size: 26px; }
+    .hud-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
     .hud-title {
       font-family: 'Bangers', 'Impact', sans-serif;
-      font-size: 38px;
+      font-size: 32px;
       letter-spacing: 3px;
       color: #fff45a;
       text-shadow: 3px 3px 0 #5a1a0a, 0 0 18px rgba(255, 244, 90, 0.6);
+      line-height: 1;
+    }
+    .hud-level {
+      font-family: 'Bangers', 'Impact', sans-serif;
+      font-size: 16px;
+      letter-spacing: 2px;
+      color: #ffeec7;
+      text-shadow: 2px 2px 0 #5a1a0a;
     }
     #stage {
       position: relative;
@@ -134,15 +148,28 @@
       text-shadow: 2px 2px 0 #5a1a0a;
     }
     .card p {
-      margin: 0 0 22px 0;
+      margin: 0 0 8px 0;
       font-size: 18px;
       color: #ffeec7;
     }
-    button#retryBtn {
+    .card .hint {
+      margin: 0 0 22px 0;
+      font-size: 14px;
+      color: #ffd55a;
+      letter-spacing: 1px;
+      font-style: italic;
+    }
+    .card .buttons {
+      display: flex;
+      gap: 14px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .card button {
       font-family: 'Bangers', 'Impact', sans-serif;
-      font-size: 30px;
+      font-size: 26px;
       letter-spacing: 3px;
-      padding: 12px 36px;
+      padding: 12px 28px;
       color: #2a0a04;
       background: linear-gradient(180deg, #ffd55a, #f4a019);
       border: 3px solid #5a1a0a;
@@ -151,8 +178,12 @@
       box-shadow: 0 5px 0 #5a1a0a;
       transition: transform 80ms ease, box-shadow 80ms ease;
     }
-    button#retryBtn:hover { transform: translateY(-2px); box-shadow: 0 7px 0 #5a1a0a; }
-    button#retryBtn:active { transform: translateY(3px); box-shadow: 0 2px 0 #5a1a0a; }
+    .card button:hover { transform: translateY(-2px); box-shadow: 0 7px 0 #5a1a0a; }
+    .card button:active { transform: translateY(3px); box-shadow: 0 2px 0 #5a1a0a; }
+    .card button#nextBtn {
+      background: linear-gradient(180deg, #9ee85a, #4a9e1a);
+      color: #14280a;
+    }
     .footer {
       font-size: 12px;
       color: rgba(255, 244, 90, 0.6);
@@ -168,7 +199,10 @@
         <span id="burritosLeft" class="hud-value">3</span>
         <span class="hud-emoji">🌯</span>
       </div>
-      <div class="hud-title">BURRITO BLASTER</div>
+      <div class="hud-center">
+        <div class="hud-title">BURRITO BLASTER</div>
+        <div id="levelLabel" class="hud-level">LEVEL 1 / 5</div>
+      </div>
       <div class="hud-side right">
         <span class="hud-label">BEST</span>
         <span id="bestStars" class="hud-value">☆☆☆</span>
@@ -182,12 +216,16 @@
           <h1 id="overlayTitle">Level Complete</h1>
           <div id="overlayStars" class="stars">★★★</div>
           <p id="overlaySub">Nice shot, blaster.</p>
-          <button id="retryBtn">RETRY</button>
+          <p id="overlayHint" class="hint">&nbsp;</p>
+          <div class="buttons">
+            <button id="retryBtn">RETRY</button>
+            <button id="nextBtn">NEXT LEVEL</button>
+          </div>
         </div>
       </div>
     </div>
 
-    <div class="footer">Drag the burrito. Aim. Release. Demolish the critics.</div>
+    <div class="footer">Drag the burrito · Release to fire · [R]etry · [N]ext · [1-5] jump</div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
