@@ -9,7 +9,7 @@ const Model = (() => {
   let engine, world;
   let burrito = null;
   let blocks = [];
-  let critics = [];
+  let bags = [];
   let walls = [];
   let ground = null;
   let burritosLeft = 0;
@@ -36,7 +36,7 @@ const Model = (() => {
     stopFrames = 0;
     collisionListeners = [];
     blocks = [];
-    critics = [];
+    bags = [];
 
     ground = Bodies.rectangle(
       CONFIG.canvas.width / 2,
@@ -69,17 +69,18 @@ const Model = (() => {
       World.add(world, block);
     });
 
-    level.critics.forEach(c => {
-      const critic = Bodies.circle(c.x, c.y, c.radius, {
-        density: CONFIG.critic.density,
-        friction: CONFIG.critic.friction,
-        restitution: CONFIG.critic.restitution,
-        label: 'critic',
+    level.bags.forEach(b => {
+      const s = b.size;
+      const bag = Bodies.rectangle(b.x, b.y, s, s, {
+        density: CONFIG.bag.density,
+        friction: CONFIG.bag.friction,
+        restitution: CONFIG.bag.restitution,
+        label: 'bag',
       });
-      critic.alive = true;
-      critic.radius = c.radius;
-      critics.push(critic);
-      World.add(world, critic);
+      bag.alive = true;
+      bag.size = s;
+      bags.push(bag);
+      World.add(world, bag);
     });
 
     spawnBurrito();
@@ -131,7 +132,7 @@ const Model = (() => {
   }
 
   function release() {
-    if (state !== 'AIMING' || !burrito) return;
+    if (state !== 'AIMING' || !burrito) return false;
     const ax = CONFIG.slingshot.anchorX;
     const ay = CONFIG.slingshot.anchorY;
     const dx = ax - burrito.position.x;
@@ -141,7 +142,7 @@ const Model = (() => {
       // No-op: restore to nest, don't consume a burrito.
       Body.setPosition(burrito, { x: ax, y: ay });
       state = 'READY';
-      return;
+      return false;
     }
     Body.setStatic(burrito, false);
     Body.setVelocity(burrito, {
@@ -150,6 +151,7 @@ const Model = (() => {
     });
     burritosLeft -= 1;
     state = 'FLYING';
+    return true;
   }
 
   function tick() {
@@ -175,8 +177,8 @@ const Model = (() => {
 
   function checkLevelEnd() {
     if (state === 'WIN' || state === 'LOSE') return;
-    const aliveCritics = critics.filter(c => c.alive);
-    if (aliveCritics.length === 0) {
+    const aliveBags = bags.filter(b => b.alive);
+    if (aliveBags.length === 0) {
       state = 'WIN';
       return;
     }
@@ -230,7 +232,7 @@ const Model = (() => {
         Math.hypot(bodyB.velocity.x, bodyB.velocity.y)
       );
       const involvesProjectile = bodyA.label === 'burrito' || bodyB.label === 'burrito';
-      const criticBody = bodyA.label === 'critic' ? bodyA : (bodyB.label === 'critic' ? bodyB : null);
+      const bagBody = bodyA.label === 'bag' ? bodyA : (bodyB.label === 'bag' ? bodyB : null);
       const supports = pair.collision && pair.collision.supports;
       const point = (supports && supports[0]) || {
         x: (bodyA.position.x + bodyB.position.x) / 2,
@@ -238,15 +240,15 @@ const Model = (() => {
       };
 
       collisionListeners.forEach(fn => fn({
-        bodyA, bodyB, speed, involvesProjectile, criticBody, point, criticDestroyed: false,
+        bodyA, bodyB, speed, involvesProjectile, bagBody, point, bagDestroyed: false,
       }));
 
-      if (criticBody && criticBody.alive && speed >= CONFIG.critic.destroyThreshold) {
-        criticBody.alive = false;
-        World.remove(world, criticBody);
+      if (bagBody && bagBody.alive && speed >= CONFIG.bag.destroyThreshold) {
+        bagBody.alive = false;
+        World.remove(world, bagBody);
         collisionListeners.forEach(fn => fn({
-          criticDestroyed: true,
-          point: { x: criticBody.position.x, y: criticBody.position.y },
+          bagDestroyed: true,
+          point: { x: bagBody.position.x, y: bagBody.position.y },
           speed,
         }));
       }
@@ -264,7 +266,7 @@ const Model = (() => {
     getState: () => state,
     getBurrito: () => burrito,
     getBlocks: () => blocks,
-    getCritics: () => critics,
+    getBags: () => bags,
     getBurritosLeft: () => burritosLeft,
     getBurritosStart: () => burritosStart,
     getLevelIndex: () => levelIndex,

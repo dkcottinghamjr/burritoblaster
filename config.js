@@ -77,22 +77,22 @@ const CONFIG = {
     },
   },
 
-  critic: {
-    bodyColor: '#7a3a9b',
-    bodyStroke: '#3a1a4a',
-    hatColor: '#1c0820',
-    eyeWhite: '#ffffff',
-    eyePupil: '#1a0820',
-    mouthColor: '#1a0820',
-    density: 0.002,
-    friction: 0.3,
-    restitution: 0.4,
+  bag: {
+    paperColor: '#b97a3a',
+    paperShadow: '#7a4e1f',
+    paperHighlight: '#e0a96a',
+    foldColor: '#6e4319',
+    foldStroke: '#3a2210',
+    creaseColor: '#8a5a26',
+    density: 0.0018,
+    friction: 0.45,
+    restitution: 0.18,
     destroyThreshold: 4.5, // total impact velocity at collision
   },
 
   /**
    * LEVELS — ordered campaign. Each level defines its own fort layout,
-   * critic placement and burrito budget. Coordinates assume ground top
+   * bag placement and burrito budget. Coordinates assume ground top
    * at y = canvas.height - ground.height = 590.
    */
   levels: [
@@ -110,10 +110,10 @@ const CONFIG = {
         { type: 'cheese', x: 1080, y: 545, w: 30,  h: 70  },
         { type: 'chip',   x: 1080, y: 495, w: 60,  h: 18  },
       ],
-      critics: [
-        { x: 960,  y: 445, radius: 22 },
-        { x: 960,  y: 335, radius: 22 },
-        { x: 1080, y: 470, radius: 18 },
+      bags: [
+        { x: 960,  y: 445, size: 44 },
+        { x: 960,  y: 335, size: 44 },
+        { x: 1080, y: 470, size: 36 },
       ],
     },
 
@@ -135,11 +135,11 @@ const CONFIG = {
         { type: 'cheese', x: 1020, y: 322, w: 25,  h: 80  },
         { type: 'chip',   x: 1000, y: 272, w: 90,  h: 16  },
       ],
-      critics: [
-        { x: 1000, y: 244, radius: 18 }, // perched on the tower's tip
-        { x: 1000, y: 451, radius: 20 }, // middle floor
-        { x: 1000, y: 568, radius: 20 }, // base, between pillars
-        { x: 1110, y: 572, radius: 16 }, // hiding off to the side
+      bags: [
+        { x: 1000, y: 244, size: 36 }, // perched on the tower's tip
+        { x: 1000, y: 451, size: 40 }, // middle floor
+        { x: 1000, y: 568, size: 40 }, // base, between pillars
+        { x: 1110, y: 572, size: 32 }, // hiding off to the side
       ],
     },
 
@@ -159,11 +159,11 @@ const CONFIG = {
         // Hidden platform behind back wall
         { type: 'chip',   x: 1130, y: 540, w: 100, h: 18 },
       ],
-      critics: [
-        { x: 780,  y: 392, radius: 16 }, // teetering on the front wall
-        { x: 830,  y: 570, radius: 18 }, // ground, between walls
-        { x: 910,  y: 482, radius: 18 }, // perched on inner stack
-        { x: 1130, y: 512, radius: 18 }, // behind back wall
+      bags: [
+        { x: 780,  y: 392, size: 32 }, // teetering on the front wall
+        { x: 830,  y: 570, size: 36 }, // ground, between walls
+        { x: 910,  y: 482, size: 36 }, // perched on inner stack
+        { x: 1130, y: 512, size: 36 }, // behind back wall
       ],
     },
 
@@ -188,12 +188,12 @@ const CONFIG = {
         { type: 'chip',   x: 1035, y: 372, w: 95,  h: 18 },
         { type: 'cheese', x: 1035, y: 322, w: 28,  h: 80 },
       ],
-      critics: [
-        { x: 730,  y: 454, radius: 18 }, // on Fort A floor 1
-        { x: 730,  y: 370, radius: 18 }, // on Fort A floor 2 (top)
-        { x: 1035, y: 454, radius: 18 }, // on Fort B floor 1
-        { x: 1035, y: 344, radius: 18 }, // on Fort B floor 2
-        { x: 1035, y: 262, radius: 18 }, // on Fort B summit
+      bags: [
+        { x: 730,  y: 454, size: 36 }, // on Fort A floor 1
+        { x: 730,  y: 370, size: 36 }, // on Fort A floor 2 (top)
+        { x: 1035, y: 454, size: 36 }, // on Fort B floor 1
+        { x: 1035, y: 344, size: 36 }, // on Fort B floor 2
+        { x: 1035, y: 262, size: 36 }, // on Fort B summit
       ],
     },
 
@@ -222,12 +222,12 @@ const CONFIG = {
         { type: 'cheese', x: 1120, y: 425, w: 22, h: 90 },
         { type: 'chip',   x: 1090, y: 372, w: 80, h: 16 },
       ],
-      critics: [
-        { x: 885,  y: 485, radius: 16 }, // sealed inside the bunker
-        { x: 885,  y: 387, radius: 16 }, // on top of the bunker roof
-        { x: 1090, y: 456, radius: 14 }, // between right top pillars
-        { x: 1090, y: 345, radius: 18 }, // crowning the right tower
-        { x: 1170, y: 572, radius: 16 }, // out on the right flank
+      bags: [
+        { x: 885,  y: 485, size: 32 }, // sealed inside the bunker
+        { x: 885,  y: 387, size: 32 }, // on top of the bunker roof
+        { x: 1090, y: 456, size: 28 }, // between right top pillars
+        { x: 1090, y: 345, size: 36 }, // crowning the right tower
+        { x: 1170, y: 572, size: 32 }, // out on the right flank
       ],
     },
   ],
@@ -237,7 +237,7 @@ const CONFIG = {
     salsaColors: ['#d8232a', '#ff5a3c', '#a8121a', '#ff8a3c'],
     crumbColors: ['#f4c542', '#d4943a', '#fff4c0'],
     countOnImpact: 14,
-    countOnCritic: 38,
+    countOnBag: 38,
     minSpeed: 2,
     maxSpeed: 9,
     minLife: 28,
@@ -255,7 +255,7 @@ const CONFIG = {
   screenShake: {
     duration: 200,
     magnitude: 9,
-    criticMagnitude: 15,
+    bagMagnitude: 15,
   },
 
   popups: {
@@ -281,9 +281,58 @@ const CONFIG = {
     threeStarsAtRatio: 2 / 3,
   },
 
+  audio: {
+    masterVolume: 0.45,
+
+    // Slingshot release: short pitched whoosh
+    launch: {
+      freqStart: 620,
+      freqEnd: 90,
+      duration: 0.22,
+      peak: 0.32,
+      type: 'sawtooth',
+    },
+
+    // Generic impact thud (block-on-block, burrito-on-block)
+    impact: {
+      durationMin: 0.06,
+      durationMax: 0.13,
+      cutoffStart: 1800,
+      cutoffEnd: 180,
+      peakMin: 0.18,
+      peakMax: 0.5,
+    },
+
+    // Bag destruction: crinkly band-pass noise + descending sine "boop"
+    bag: {
+      noiseDuration: 0.16,
+      noiseCenterHz: 2400,
+      noiseQ: 1.4,
+      noisePeak: 0.4,
+      blipFreq: 660,
+      blipFreqEnd: 280,
+      blipDuration: 0.14,
+      blipPeak: 0.34,
+    },
+
+    // Win fanfare (C5 / E5 / G5)
+    win: { notes: [523.25, 659.25, 783.99], step: 0.11, type: 'triangle', peak: 0.3, release: 0.4 },
+    // Lose stinger (G3 / C3)
+    lose: { notes: [196.0, 130.81], step: 0.19, type: 'sawtooth', peak: 0.24, release: 0.45 },
+  },
+
+  haptics: {
+    launch: 25,
+    impact: 12,
+    bag: [18, 30, 55],
+    win: [60, 40, 60, 40, 120],
+    lose: [120, 60, 120],
+  },
+
   storage: {
     bestStarsKey: 'burritoBlaster.bestStars.v2',
     progressKey: 'burritoBlaster.progress.v2',
+    muteKey: 'burritoBlaster.muted.v2',
   },
 
   state: {

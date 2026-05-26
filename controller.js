@@ -13,6 +13,7 @@ const Controller = (() => {
   let overlayShownFor = null;
   let accumulator = 0;
   let lastTime = 0;
+  let muted = false;
   const FIXED_DT = 1000 / 60;
   const ui = {};
 
@@ -33,9 +34,12 @@ const Controller = (() => {
     ui.menuOverlay = document.getElementById('menuOverlay');
     ui.menuCloseBtn = document.getElementById('menuCloseBtn');
     ui.levelList = document.getElementById('levelList');
+    ui.muteBtn = document.getElementById('muteBtn');
 
     bestStarsByLevel = loadBest();
     currentLevel = clampLevel(loadProgress());
+    muted = loadMute();
+    applyMute(muted);
 
     ui.retryBtn.addEventListener('click', () => {
       hideOverlay();
@@ -52,6 +56,11 @@ const Controller = (() => {
     ui.menuCloseBtn.addEventListener('click', closeMenu);
     ui.menuOverlay.addEventListener('click', e => {
       if (e.target === ui.menuOverlay) closeMenu();
+    });
+    ui.muteBtn.addEventListener('click', () => {
+      muted = !muted;
+      applyMute(muted);
+      saveMute(muted);
     });
 
     bindPointer();
@@ -91,6 +100,8 @@ const Controller = (() => {
     // Pointer Events: one unified path for mouse, pen and touch. Pointer
     // capture keeps the drag tracked even if the finger leaves the canvas.
     canvas.addEventListener('pointerdown', e => {
+      // First user gesture: unlock the AudioContext (mobile autoplay rules).
+      Audio.unlock();
       if (activePointerId !== null) return;
       if (e.pointerType === 'mouse' && e.button !== 0) return;
       const handled = onPointerDown(getPos(e));
@@ -151,22 +162,31 @@ const Controller = (() => {
   function onPointerUp() {
     if (!aiming) return;
     aiming = false;
-    Model.release();
+    const launched = Model.release();
+    if (launched) {
+      Audio.launch();
+      Haptics.launch();
+    }
   }
 
   function onCollision(info) {
-    if (info.criticDestroyed) {
+    if (info.bagDestroyed) {
       const words = CONFIG.popups.words;
       const word = words[Math.floor(Math.random() * words.length)];
       View.spawnPopup(info.point.x, info.point.y, word);
-      View.spawnParticles(info.point.x, info.point.y, 'salsa', CONFIG.particles.countOnCritic);
-      View.triggerShake(CONFIG.screenShake.criticMagnitude, CONFIG.screenShake.duration);
+      View.spawnParticles(info.point.x, info.point.y, 'salsa', CONFIG.particles.countOnBag);
+      View.triggerShake(CONFIG.screenShake.bagMagnitude, CONFIG.screenShake.duration);
+      Audio.bag();
+      Haptics.bag();
       return;
     }
     if (info.speed >= CONFIG.impact.shakeThreshold) {
       const kind = info.involvesProjectile ? 'salsa' : 'crumb';
       View.spawnParticles(info.point.x, info.point.y, kind);
       View.triggerShake(CONFIG.screenShake.magnitude, CONFIG.screenShake.duration);
+      const intensity = Math.min(1, info.speed / 16);
+      Audio.impact(intensity);
+      if (info.involvesProjectile) Haptics.impact();
     }
   }
 
@@ -211,6 +231,23 @@ const Controller = (() => {
     try { localStorage.setItem(CONFIG.storage.progressKey, String(idx)); } catch (_) {}
   }
 
+  function loadMute() {
+    try { return localStorage.getItem(CONFIG.storage.muteKey) === '1'; } catch (_) { return false; }
+  }
+
+  function saveMute(m) {
+    try { localStorage.setItem(CONFIG.storage.muteKey, m ? '1' : '0'); } catch (_) {}
+  }
+
+  function applyMute(m) {
+    Audio.setMuted(m);
+    Haptics.setMuted(m);
+    if (ui.muteBtn) {
+      ui.muteBtn.textContent = m ? '🔇' : '🔊';
+      ui.muteBtn.setAttribute('aria-pressed', String(m));
+    }
+  }
+
   function renderStars(n) {
     return '★'.repeat(n) + '☆'.repeat(Math.max(0, 3 - n));
   }
@@ -230,12 +267,12 @@ const Controller = (() => {
     const stars = computeStars();
     saveBest(idx, stars);
 
-    ui.overlayTitle.textContent = isLast ? 'CAMPAIGN COMPLETE!' : 'CRITICS DEMOLISHED!';
+    ui.overlayTitle.textContent = isLast ? 'CAMPAIGN COMPLETE!' : 'BAGS BLASTED!';
     ui.overlaySub.textContent = `Burritos remaining: ${Model.getBurritosLeft()} / ${Model.getBurritosStart()}`;
     ui.overlayStars.textContent = renderStars(stars);
     ui.overlayStars.style.display = '';
     ui.overlayHint.textContent = isLast
-      ? 'You smacked every critic in the campaign.'
+      ? 'You blasted every bag in the campaign.'
       : `Next up: ${CONFIG.levels[idx + 1].name}`;
     ui.overlayHint.style.display = '';
     ui.nextBtn.textContent = isLast ? 'PLAY AGAIN' : 'NEXT LEVEL';
@@ -247,7 +284,7 @@ const Controller = (() => {
 
   function showLoseOverlay() {
     ui.overlayTitle.textContent = 'OUT OF BURRITOS!';
-    ui.overlaySub.textContent = 'The critics survived.';
+    ui.overlaySub.textContent = 'The bags survived.';
     ui.overlayStars.style.display = 'none';
     ui.overlayHint.textContent = Model.getLevel().hint || '';
     ui.overlayHint.style.display = ui.overlayHint.textContent ? '' : 'none';
@@ -326,9 +363,19 @@ const Controller = (() => {
 
     const s = Model.getState();
     if (s !== overlayShownFor) {
-      if (s === 'WIN') { showWinOverlay(); overlayShownFor = 'WIN'; }
-      else if (s === 'LOSE') { showLoseOverlay(); overlayShownFor = 'LOSE'; }
-      else if (s === 'READY' || s === 'AIMING' || s === 'FLYING') { overlayShownFor = null; }
+      if (s === 'WIN') {
+        showWinOverlay();
+        Audio.win();
+        Haptics.win();
+        overlayShownFor = 'WIN';
+      } else if (s === 'LOSE') {
+        showLoseOverlay();
+        Audio.lose();
+        Haptics.lose();
+        overlayShownFor = 'LOSE';
+      } else if (s === 'READY' || s === 'AIMING' || s === 'FLYING') {
+        overlayShownFor = null;
+      }
     }
 
     requestAnimationFrame(loop);

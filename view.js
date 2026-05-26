@@ -66,7 +66,7 @@ const View = (() => {
     drawSlingshotBack();
     drawTrajectory();
     drawBlocks();
-    drawCritics();
+    drawBags();
     drawElasticBack();
     drawBurrito();
     drawElasticFront();
@@ -245,49 +245,79 @@ const View = (() => {
     });
   }
 
-  function drawCritics() {
-    Model.getCritics().forEach(c => {
-      if (!c.alive) return;
-      const r = c.radius;
-      ctx.save();
-      ctx.translate(c.position.x, c.position.y);
-      ctx.rotate(c.angle);
+  function drawBags() {
+    Model.getBags().forEach(b => {
+      if (!b.alive) return;
+      const s = b.size;
+      const halfBottom = (s * 0.92) / 2;
+      const halfTop = (s * 1.0) / 2;
+      const halfH = s / 2;
 
-      ctx.fillStyle = CONFIG.critic.bodyColor;
+      ctx.save();
+      ctx.translate(b.position.x, b.position.y);
+      ctx.rotate(b.angle);
+
+      // Body — slightly trapezoidal, wider at the top opening.
+      ctx.fillStyle = CONFIG.bag.paperColor;
       ctx.beginPath();
-      ctx.arc(0, 0, r, 0, Math.PI * 2);
+      ctx.moveTo(-halfBottom,  halfH);
+      ctx.lineTo( halfBottom,  halfH);
+      ctx.lineTo( halfTop,    -halfH);
+      ctx.lineTo(-halfTop,    -halfH);
+      ctx.closePath();
       ctx.fill();
-      ctx.strokeStyle = CONFIG.critic.bodyStroke;
+      ctx.strokeStyle = CONFIG.bag.paperShadow;
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // beret
-      ctx.fillStyle = CONFIG.critic.hatColor;
+      // Folded-over top band
+      const foldH = s * 0.18;
+      ctx.fillStyle = CONFIG.bag.foldColor;
       ctx.beginPath();
-      ctx.ellipse(0, -r * 0.85, r * 0.95, r * 0.35, 0, 0, Math.PI * 2);
+      ctx.moveTo(-halfTop, -halfH);
+      ctx.lineTo( halfTop, -halfH);
+      ctx.lineTo( halfTop * 0.96, -halfH + foldH);
+      ctx.lineTo(-halfTop * 0.96, -halfH + foldH);
+      ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = CONFIG.bag.foldStroke;
+      ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(r * 0.25, -r * 1.05, r * 0.18, 0, Math.PI * 2);
-      ctx.fill();
-
-      // eyes
-      ctx.fillStyle = CONFIG.critic.eyeWhite;
-      ctx.beginPath();
-      ctx.arc(-r * 0.32, -r * 0.1, r * 0.22, 0, Math.PI * 2);
-      ctx.arc( r * 0.32, -r * 0.1, r * 0.22, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = CONFIG.critic.eyePupil;
-      ctx.beginPath();
-      ctx.arc(-r * 0.30, -r * 0.1, r * 0.10, 0, Math.PI * 2);
-      ctx.arc( r * 0.34, -r * 0.1, r * 0.10, 0, Math.PI * 2);
-      ctx.fill();
-
-      // disapproving frown
-      ctx.strokeStyle = CONFIG.critic.mouthColor;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.arc(0, r * 0.55, r * 0.35, Math.PI, Math.PI * 2);
+      ctx.moveTo(-halfTop * 0.96, -halfH + foldH);
+      ctx.lineTo( halfTop * 0.96, -halfH + foldH);
       ctx.stroke();
+
+      // Vertical paper crease in the centre
+      ctx.strokeStyle = CONFIG.bag.creaseColor;
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(0, -halfH + foldH + 1);
+      ctx.lineTo(0,  halfH - 1);
+      ctx.stroke();
+
+      // Subtle highlight on the left flank
+      ctx.fillStyle = CONFIG.bag.paperHighlight;
+      ctx.globalAlpha = 0.32;
+      const hx = -halfTop + s * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(hx,            -halfH + foldH + 2);
+      ctx.lineTo(hx + s * 0.06, -halfH + foldH + 2);
+      ctx.lineTo(hx + s * 0.06,  halfH - 2);
+      ctx.lineTo(hx,             halfH - 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+
+      // Outer crinkle ticks near the bottom corners
+      ctx.strokeStyle = CONFIG.bag.paperShadow;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(-halfBottom + 2, halfH - 4);
+      ctx.lineTo(-halfBottom + 5, halfH - 1);
+      ctx.moveTo( halfBottom - 2, halfH - 4);
+      ctx.lineTo( halfBottom - 5, halfH - 1);
+      ctx.stroke();
+
       ctx.restore();
     });
   }
