@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Burrito Blaster</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Fredoka:wght@600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-1: #2a1208;
+      --bg-2: #501e0a;
+      --accent: #fff45a;
+      --accent-2: #ff5a3c;
+      --ink: #2a0a04;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background: radial-gradient(ellipse at top, var(--bg-2) 0%, var(--bg-1) 70%);
+      font-family: 'Fredoka', system-ui, sans-serif;
+      color: #fff;
+      overflow: hidden;
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    #app {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      padding: 12px;
+    }
+    #hud {
+      width: min(1200px, 100%);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 18px;
+      background: linear-gradient(180deg, rgba(255, 90, 60, 0.92), rgba(170, 40, 25, 0.92));
+      border: 3px solid #ffd55a;
+      border-radius: 14px;
+      box-shadow: 0 4px 0 #5a1a0a, 0 0 0 4px rgba(0,0,0,0.25) inset;
+    }
+    .hud-side {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 200px;
+    }
+    .hud-side.right { justify-content: flex-end; }
+    .hud-label {
+      font-family: 'Bangers', 'Impact', sans-serif;
+      letter-spacing: 1px;
+      color: #fff45a;
+      font-size: 20px;
+      text-shadow: 2px 2px 0 #5a1a0a;
+    }
+    .hud-value {
+      font-family: 'Bangers', 'Impact', sans-serif;
+      font-size: 30px;
+      color: #ffffff;
+      text-shadow: 2px 2px 0 #5a1a0a;
+      min-width: 30px;
+      text-align: center;
+    }
+    .hud-emoji { font-size: 26px; }
+    .hud-title {
+      font-family: 'Bangers', 'Impact', sans-serif;
+      font-size: 38px;
+      letter-spacing: 3px;
+      color: #fff45a;
+      text-shadow: 3px 3px 0 #5a1a0a, 0 0 18px rgba(255, 244, 90, 0.6);
+    }
+    #stage {
+      position: relative;
+      width: min(1200px, 100%);
+      aspect-ratio: 1200 / 650;
+    }
+    canvas#game {
+      width: 100%;
+      height: 100%;
+      display: block;
+      border: 4px solid #ffd55a;
+      border-radius: 16px;
+      box-shadow: 0 8px 0 #5a1a0a, 0 0 0 6px rgba(0,0,0,0.25);
+      background: #ffe29a;
+      cursor: crosshair;
+    }
+    #overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(20, 8, 4, 0.55);
+      backdrop-filter: blur(2px);
+      border-radius: 16px;
+      transition: opacity 200ms ease;
+    }
+    #overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+    .card {
+      background: linear-gradient(180deg, #ff7a3c, #a8121a);
+      border: 4px solid #ffd55a;
+      border-radius: 22px;
+      padding: 30px 50px;
+      text-align: center;
+      box-shadow: 0 10px 0 #3a0a04, 0 0 0 4px rgba(0,0,0,0.2) inset;
+      max-width: 420px;
+    }
+    .card h1 {
+      font-family: 'Bangers', 'Impact', sans-serif;
+      font-size: 46px;
+      letter-spacing: 2px;
+      color: #fff45a;
+      margin: 0 0 14px 0;
+      text-shadow: 3px 3px 0 #5a1a0a;
+    }
+    .stars {
+      font-size: 56px;
+      color: #fff45a;
+      letter-spacing: 6px;
+      margin: 6px 0 14px 0;
+      text-shadow: 2px 2px 0 #5a1a0a;
+    }
+    .card p {
+      margin: 0 0 22px 0;
+      font-size: 18px;
+      color: #ffeec7;
+    }
+    button#retryBtn {
+      font-family: 'Bangers', 'Impact', sans-serif;
+      font-size: 30px;
+      letter-spacing: 3px;
+      padding: 12px 36px;
+      color: #2a0a04;
+      background: linear-gradient(180deg, #ffd55a, #f4a019);
+      border: 3px solid #5a1a0a;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 5px 0 #5a1a0a;
+      transition: transform 80ms ease, box-shadow 80ms ease;
+    }
+    button#retryBtn:hover { transform: translateY(-2px); box-shadow: 0 7px 0 #5a1a0a; }
+    button#retryBtn:active { transform: translateY(3px); box-shadow: 0 2px 0 #5a1a0a; }
+    .footer {
+      font-size: 12px;
+      color: rgba(255, 244, 90, 0.6);
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header id="hud">
+      <div class="hud-side left">
+        <span class="hud-label">BURRITOS</span>
+        <span id="burritosLeft" class="hud-value">3</span>
+        <span class="hud-emoji">🌯</span>
+      </div>
+      <div class="hud-title">BURRITO BLASTER</div>
+      <div class="hud-side right">
+        <span class="hud-label">BEST</span>
+        <span id="bestStars" class="hud-value">☆☆☆</span>
+      </div>
+    </header>
+
+    <div id="stage">
+      <canvas id="game" width="1200" height="650"></canvas>
+      <div id="overlay" class="hidden">
+        <div class="card">
+          <h1 id="overlayTitle">Level Complete</h1>
+          <div id="overlayStars" class="stars">★★★</div>
+          <p id="overlaySub">Nice shot, blaster.</p>
+          <button id="retryBtn">RETRY</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">Drag the burrito. Aim. Release. Demolish the critics.</div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+  <script src="config.js"></script>
+  <script src="model.js"></script>
+  <script src="view.js"></script>
+  <script src="controller.js"></script>
+  <script>
+    (function bootstrap() {
+      const canvas = document.getElementById('game');
+      View.init(canvas);
+      Controller.init(canvas);
+    })();
+  </script>
+</body>
+</html>

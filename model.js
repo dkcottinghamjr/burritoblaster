@@ -1,0 +1,264 @@
+/**
+ * BURRITO BLASTER — model.js
+ * The Model. Owns Matter.js engine and game state. No rendering, no DOM.
+ * Reads everything from CONFIG.
+ */
+const Model = (() => {
+  const { Engine, World, Bodies, Body, Events } = Matter;
+
+  let engine, world;
+  let burrito = null;
+  let blocks = [];
+  let critics = [];
+  let walls = [];
+  let ground = null;
+  let burritosLeft = 0;
+  let state = 'READY'; // READY | AIMING | FLYING | WAITING | WIN | LOSE
+  let stopFrames = 0;
+  let collisionListeners = [];
+
+  function init() {
+    engine = Engine.create();
+    world = engine.world;
+    world.gravity.x = CONFIG.gravity.x;
+    world.gravity.y = CONFIG.gravity.y;
+    world.gravity.scale = CONFIG.gravity.scale;
+
+    burritosLeft = CONFIG.burrito.startCount;
+    state = 'READY';
+    stopFrames = 0;
+    collisionListeners = [];
+    blocks = [];
+    critics = [];
+
+    ground = Bodies.rectangle(
+      CONFIG.canvas.width / 2,
+      CONFIG.canvas.height - CONFIG.ground.height / 2,
+      CONFIG.canvas.width,
+      CONFIG.ground.height,
+      { isStatic: true, label: 'ground', friction: CONFIG.ground.friction }
+    );
+    World.add(world, ground);
+
+    const t = 80;
+    walls = [
+      Bodies.rectangle(-t / 2, CONFIG.canvas.height / 2, t, CONFIG.canvas.height * 2, { isStatic: true, label: 'wall' }),
+      Bodies.rectangle(CONFIG.canvas.width + t / 2, CONFIG.canvas.height / 2, t, CONFIG.canvas.height * 2, { isStatic: true, label: 'wall' }),
+      Bodies.rectangle(CONFIG.canvas.width / 2, -t / 2, CONFIG.canvas.width * 2, t, { isStatic: true, label: 'wall' }),
+    ];
+    World.add(world, walls);
+
+    CONFIG.blocks.forEach(b => {
+      const mat = CONFIG.blockMaterials[b.type];
+      const block = Bodies.rectangle(b.x, b.y, b.w, b.h, {
+        density: mat.density,
+        friction: mat.friction,
+        restitution: mat.restitution,
+        label: 'block:' + b.type,
+      });
+      block.kind = b.type;
+      block.dims = { w: b.w, h: b.h };
+      blocks.push(block);
+      World.add(world, block);
+    });
+
+    CONFIG.critics.forEach(c => {
+      const critic = Bodies.circle(c.x, c.y, c.radius, {
+        density: CONFIG.critic.density,
+        friction: CONFIG.critic.friction,
+        restitution: CONFIG.critic.restitution,
+        label: 'critic',
+      });
+      critic.alive = true;
+      critic.radius = c.radius;
+      critics.push(critic);
+      World.add(world, critic);
+    });
+
+    spawnBurrito();
+    Events.on(engine, 'collisionStart', onCollisionStart);
+  }
+
+  function spawnBurrito() {
+    if (burrito) {
+      World.remove(world, burrito);
+      burrito = null;
+    }
+    burrito = Bodies.circle(
+      CONFIG.slingshot.anchorX,
+      CONFIG.slingshot.anchorY,
+      CONFIG.burrito.radius,
+      {
+        density: CONFIG.burrito.density,
+        friction: CONFIG.burrito.friction,
+        frictionAir: CONFIG.burrito.frictionAir,
+        restitution: CONFIG.burrito.restitution,
+        label: 'burrito',
+      }
+    );
+    Body.setStatic(burrito, true);
+    World.add(world, burrito);
+    state = 'READY';
+    stopFrames = 0;
+  }
+
+  function startAim() {
+    if (state !== 'READY' || !burrito) return false;
+    state = 'AIMING';
+    return true;
+  }
+
+  function updateAim(mx, my) {
+    if (state !== 'AIMING' || !burrito) return;
+    const ax = CONFIG.slingshot.anchorX;
+    const ay = CONFIG.slingshot.anchorY;
+    let dx = mx - ax;
+    let dy = my - ay;
+    const dist = Math.hypot(dx, dy);
+    const max = CONFIG.slingshot.maxStretch;
+    if (dist > max) {
+      dx = (dx / dist) * max;
+      dy = (dy / dist) * max;
+    }
+    Body.setPosition(burrito, { x: ax + dx, y: ay + dy });
+  }
+
+  function release() {
+    if (state !== 'AIMING' || !burrito) return;
+    const ax = CONFIG.slingshot.anchorX;
+    const ay = CONFIG.slingshot.anchorY;
+    const dx = ax - burrito.position.x;
+    const dy = ay - burrito.position.y;
+    const stretch = Math.hypot(dx, dy);
+    if (stretch < CONFIG.slingshot.minReleaseStretch) {
+      // No-op: restore to nest, don't consume a burrito.
+      Body.setPosition(burrito, { x: ax, y: ay });
+      state = 'READY';
+      return;
+    }
+    Body.setStatic(burrito, false);
+    Body.setVelocity(burrito, {
+      x: dx * CONFIG.slingshot.velocityMultiplier,
+      y: dy * CONFIG.slingshot.velocityMultiplier,
+    });
+    burritosLeft -= 1;
+    state = 'FLYING';
+  }
+
+  function tick() {
+    Engine.update(engine, 1000 / 60);
+
+    if (state === 'FLYING' && burrito) {
+      const v = burrito.velocity;
+      const speed = Math.hypot(v.x, v.y);
+      if (speed < CONFIG.state.stopSpeedThreshold) stopFrames++;
+      else stopFrames = 0;
+
+      const off = burrito.position.x < -80
+        || burrito.position.x > CONFIG.canvas.width + 80
+        || burrito.position.y > CONFIG.canvas.height + 200;
+
+      if (stopFrames > CONFIG.state.stopFrames || off) {
+        stopFrames = 0;
+        state = 'WAITING';
+        setTimeout(checkLevelEnd, CONFIG.state.settleDelayMs);
+      }
+    }
+  }
+
+  function checkLevelEnd() {
+    if (state === 'WIN' || state === 'LOSE') return;
+    const aliveCritics = critics.filter(c => c.alive);
+    if (aliveCritics.length === 0) {
+      state = 'WIN';
+      return;
+    }
+    if (burritosLeft <= 0) {
+      state = 'LOSE';
+      return;
+    }
+    spawnBurrito();
+  }
+
+  /**
+   * Trajectory prediction. Simulates an idealised forward physics step
+   * matching Matter.js integration so the dashed parabola matches reality.
+   */
+  function predictTrajectory() {
+    if (state !== 'AIMING' || !burrito) return [];
+    const ax = CONFIG.slingshot.anchorX;
+    const ay = CONFIG.slingshot.anchorY;
+    const dx = ax - burrito.position.x;
+    const dy = ay - burrito.position.y;
+    if (Math.hypot(dx, dy) < CONFIG.trajectory.minStretchToShow) return [];
+
+    const mult = CONFIG.slingshot.velocityMultiplier;
+    let vx = dx * mult;
+    let vy = dy * mult;
+    let x = burrito.position.x;
+    let y = burrito.position.y;
+    const g = CONFIG.trajectory.gravityPerTick;
+    const drag = CONFIG.trajectory.dragPerTick;
+    const groundY = CONFIG.canvas.height - CONFIG.ground.height;
+
+    const pts = [];
+    for (let i = 0; i < CONFIG.trajectory.steps; i++) {
+      x += vx;
+      y += vy;
+      vy += g;
+      vx *= drag;
+      vy *= drag;
+      pts.push({ x, y });
+      if (y > groundY - CONFIG.burrito.radius) break;
+      if (x > CONFIG.canvas.width + 60) break;
+    }
+    return pts;
+  }
+
+  function onCollisionStart(evt) {
+    evt.pairs.forEach(pair => {
+      const { bodyA, bodyB } = pair;
+      const speed = Math.max(
+        Math.hypot(bodyA.velocity.x, bodyA.velocity.y),
+        Math.hypot(bodyB.velocity.x, bodyB.velocity.y)
+      );
+      const involvesProjectile = bodyA.label === 'burrito' || bodyB.label === 'burrito';
+      const criticBody = bodyA.label === 'critic' ? bodyA : (bodyB.label === 'critic' ? bodyB : null);
+      const supports = pair.collision && pair.collision.supports;
+      const point = (supports && supports[0]) || {
+        x: (bodyA.position.x + bodyB.position.x) / 2,
+        y: (bodyA.position.y + bodyB.position.y) / 2,
+      };
+
+      collisionListeners.forEach(fn => fn({
+        bodyA, bodyB, speed, involvesProjectile, criticBody, point, criticDestroyed: false,
+      }));
+
+      if (criticBody && criticBody.alive && speed >= CONFIG.critic.destroyThreshold) {
+        criticBody.alive = false;
+        World.remove(world, criticBody);
+        collisionListeners.forEach(fn => fn({
+          criticDestroyed: true,
+          point: { x: criticBody.position.x, y: criticBody.position.y },
+          speed,
+        }));
+      }
+    });
+  }
+
+  function onCollision(fn) { collisionListeners.push(fn); }
+
+  return {
+    init,
+    tick,
+    startAim, updateAim, release,
+    predictTrajectory,
+    onCollision,
+    getState: () => state,
+    getBurrito: () => burrito,
+    getBlocks: () => blocks,
+    getCritics: () => critics,
+    getBurritosLeft: () => burritosLeft,
+    getAnchor: () => ({ x: CONFIG.slingshot.anchorX, y: CONFIG.slingshot.anchorY }),
+  };
+})();
