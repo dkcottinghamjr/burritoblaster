@@ -14,6 +14,9 @@ const Controller = (() => {
   let accumulator = 0;
   let lastTime = 0;
   let muted = false;
+  let totalChips = 0;
+  let runChips = 0;
+  let pulseClearTimer = null;
   const FIXED_DT = 1000 / 60;
   const ui = {};
 
@@ -35,11 +38,17 @@ const Controller = (() => {
     ui.menuCloseBtn = document.getElementById('menuCloseBtn');
     ui.levelList = document.getElementById('levelList');
     ui.muteBtn = document.getElementById('muteBtn');
+    ui.chipsCount = document.getElementById('chipsCount');
+    ui.overlayBonus = document.getElementById('overlayBonus');
+    ui.overlayRun = document.getElementById('overlayRun');
 
     bestStarsByLevel = loadBest();
     currentLevel = clampLevel(loadProgress());
     muted = loadMute();
+    totalChips = loadChips();
     applyMute(muted);
+
+    View.setChipsTarget(getChipsTargetWorld);
 
     ui.retryBtn.addEventListener('click', () => {
       hideOverlay();
@@ -91,6 +100,7 @@ const Controller = (() => {
     overlayShownFor = null;
 
     updateHUD();
+    renderChipsText();
     running = true;
     lastTime = performance.now();
     requestAnimationFrame(loop);
@@ -178,6 +188,9 @@ const Controller = (() => {
       View.triggerShake(CONFIG.screenShake.bagMagnitude, CONFIG.screenShake.duration);
       Audio.bag();
       Haptics.bag();
+      // Chips burst from the bag and fly into the HUD score counter.
+      const chipCount = computeChipCount(info.size, info.speed);
+      View.spawnChips(info.point.x, info.point.y, chipCount, onChipArrival);
       return;
     }
     if (info.speed >= CONFIG.impact.shakeThreshold) {
@@ -239,6 +252,74 @@ const Controller = (() => {
     try { localStorage.setItem(CONFIG.storage.muteKey, m ? '1' : '0'); } catch (_) {}
   }
 
+  function loadChips() {
+    try {
+      const raw = localStorage.getItem(CONFIG.storage.chipsKey);
+      const n = raw ? parseInt(raw, 10) : 0;
+      return Number.isFinite(n) && n >= 0 ? n : 0;
+    } catch (_) { return 0; }
+  }
+
+  function saveChips(n) {
+    try { localStorage.setItem(CONFIG.storage.chipsKey, String(n)); } catch (_) {}
+  }
+
+  function computeChipCount(size, speed) {
+    const cfg = CONFIG.scoring;
+    const n = Math.round((size || 36) * cfg.chipsPerBagSizeFactor)
+            + Math.round((speed || 0) * cfg.chipsPerBagSpeedFactor);
+    return Math.max(cfg.chipsPerBagMin, Math.min(cfg.chipsPerBagMax, n));
+  }
+
+  function getChipsTargetWorld() {
+    if (!ui.chipsCount || !canvas) return { x: 250, y: 50 };
+    const canvasRect = canvas.getBoundingClientRect();
+    if (canvasRect.width === 0) return { x: 250, y: 50 };
+    const r = ui.chipsCount.getBoundingClientRect();
+    const cx = (r.left + r.right) / 2 - canvasRect.left;
+    const cy = (r.top + r.bottom) / 2 - canvasRect.top;
+    return {
+      x: cx * (CONFIG.canvas.width / canvasRect.width),
+      y: cy * (CONFIG.canvas.height / canvasRect.height),
+    };
+  }
+
+  function onChipArrival() {
+    totalChips += 1;
+    runChips += 1;
+    renderChipsText();
+    pulseChipsHUD();
+    saveChips(totalChips);
+    Audio.tink();
+  }
+
+  function addChipsImmediately(n) {
+    if (n <= 0) return;
+    totalChips += n;
+    runChips += n;
+    renderChipsText();
+    pulseChipsHUD();
+    saveChips(totalChips);
+  }
+
+  function renderChipsText() {
+    if (!ui.chipsCount) return;
+    ui.chipsCount.textContent = formatChips(totalChips);
+  }
+
+  function pulseChipsHUD() {
+    if (!ui.chipsCount) return;
+    ui.chipsCount.classList.remove('pulse');
+    void ui.chipsCount.offsetWidth; // force reflow so the animation restarts
+    ui.chipsCount.classList.add('pulse');
+    clearTimeout(pulseClearTimer);
+    pulseClearTimer = setTimeout(() => ui.chipsCount && ui.chipsCount.classList.remove('pulse'), 320);
+  }
+
+  function formatChips(n) {
+    try { return n.toLocaleString(); } catch (_) { return String(n); }
+  }
+
   function applyMute(m) {
     Audio.setMuted(m);
     Haptics.setMuted(m);
@@ -267,10 +348,19 @@ const Controller = (() => {
     const stars = computeStars();
     saveBest(idx, stars);
 
+    const bonus = Model.getBurritosLeft() * CONFIG.scoring.chipBonusPerLeftover
+                + (stars === 3 ? CONFIG.scoring.chipBonusThreeStar : 0);
+    addChipsImmediately(bonus);
+
     ui.overlayTitle.textContent = isLast ? 'CAMPAIGN COMPLETE!' : 'BAGS BLASTED!';
     ui.overlaySub.textContent = `Burritos remaining: ${Model.getBurritosLeft()} / ${Model.getBurritosStart()}`;
     ui.overlayStars.textContent = renderStars(stars);
     ui.overlayStars.style.display = '';
+    if (ui.overlayRun) ui.overlayRun.textContent = `Chips this run: ${formatChips(runChips)}`;
+    if (ui.overlayBonus) {
+      ui.overlayBonus.textContent = bonus > 0 ? `BONUS +${formatChips(bonus)} CHIPS` : '';
+      ui.overlayBonus.style.display = bonus > 0 ? '' : 'none';
+    }
     ui.overlayHint.textContent = isLast
       ? 'You blasted every bag in the campaign.'
       : `Next up: ${CONFIG.levels[idx + 1].name}`;
@@ -286,6 +376,11 @@ const Controller = (() => {
     ui.overlayTitle.textContent = 'OUT OF BURRITOS!';
     ui.overlaySub.textContent = 'The bags survived.';
     ui.overlayStars.style.display = 'none';
+    if (ui.overlayRun) ui.overlayRun.textContent = runChips > 0 ? `You still pocketed ${formatChips(runChips)} chips.` : '';
+    if (ui.overlayBonus) {
+      ui.overlayBonus.textContent = '';
+      ui.overlayBonus.style.display = 'none';
+    }
     ui.overlayHint.textContent = Model.getLevel().hint || '';
     ui.overlayHint.style.display = ui.overlayHint.textContent ? '' : 'none';
     ui.nextBtn.style.display = 'none';
@@ -335,7 +430,9 @@ const Controller = (() => {
     overlayShownFor = null;
     aiming = false;
     activePointerId = null;
+    runChips = 0;
     updateHUD();
+    renderChipsText();
   }
 
   /**

@@ -168,6 +168,24 @@ const Audio = (() => {
     });
   }
 
+  let lastTink = 0;
+  function tink() {
+    if (!ready()) return;
+    // Throttle so a wave of chip arrivals plays as a clatter, not a sheet of clicks.
+    const now = ctx.currentTime;
+    if (now - lastTink < 0.05) return;
+    lastTink = now;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    const freq = 1200 + Math.random() * 500;
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.7, now + 0.05);
+    const g = envGain(0.16, 0.003, 0.008, 0.045, now);
+    osc.connect(g).connect(master);
+    osc.start(now);
+    osc.stop(now + 0.07);
+  }
+
   function win() {
     const c = CONFIG.audio.win;
     chord(c.notes, c.step, c.type, c.peak, c.release);
@@ -178,5 +196,5 @@ const Audio = (() => {
     chord(c.notes, c.step, c.type, c.peak, c.release);
   }
 
-  return { unlock, setMuted, isMuted, launch, impact, bag, win, lose };
+  return { unlock, setMuted, isMuted, launch, impact, bag, tink, win, lose };
 })();

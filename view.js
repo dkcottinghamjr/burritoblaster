@@ -7,6 +7,8 @@ const View = (() => {
   let ctx, canvas;
   let particles = [];
   let popups = [];
+  let chips = [];
+  let chipTargetProvider = null;
   let shake = { time: 0, magnitude: 0 };
 
   function init(canvasEl) {
@@ -71,8 +73,119 @@ const View = (() => {
     drawBurrito();
     drawElasticFront();
     drawParticles();
+    updateAndDrawChips();
     drawPopups();
 
+    ctx.restore();
+  }
+
+  function setChipsTarget(provider) {
+    chipTargetProvider = provider;
+  }
+
+  function spawnChips(x, y, count, onArrival) {
+    const cfg = CONFIG.chips;
+    // Cap on-screen sprites: if we'd overflow, still credit the score so
+    // big chains don't silently lose chips, but skip the visual sprite.
+    const room = Math.max(0, cfg.maxOnscreen - chips.length);
+    const visible = Math.min(count, room);
+    const skipped = count - visible;
+    for (let i = 0; i < skipped; i++) if (onArrival) onArrival();
+    for (let i = 0; i < visible; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const sp = cfg.explodeSpeedMin + Math.random() * (cfg.explodeSpeedMax - cfg.explodeSpeedMin);
+      chips.push({
+        x, y,
+        vx: Math.cos(ang) * sp,
+        vy: Math.sin(ang) * sp - cfg.explodeUpwardBias,
+        rot: Math.random() * Math.PI * 2,
+        rotVel: (Math.random() - 0.5) * cfg.rotVelMax,
+        size: cfg.sizeMin + Math.random() * (cfg.sizeMax - cfg.sizeMin),
+        phase: 'EXPLODE',
+        phaseTime: 0,
+        explodeFrames: cfg.explodeFramesMin + Math.floor(Math.random() * (cfg.explodeFramesMax - cfg.explodeFramesMin)),
+        homeFrames: cfg.homeFramesMin + Math.floor(Math.random() * (cfg.homeFramesMax - cfg.homeFramesMin)),
+        homeProgress: 0,
+        startX: 0, startY: 0,
+        onArrival,
+      });
+    }
+  }
+
+  function updateAndDrawChips() {
+    if (chips.length === 0) return;
+    const cfg = CONFIG.chips;
+    const target = chipTargetProvider ? chipTargetProvider() : null;
+    const arrivedCallbacks = [];
+
+    chips = chips.filter(c => {
+      c.rot += c.rotVel;
+
+      if (c.phase === 'EXPLODE') {
+        c.x += c.vx;
+        c.y += c.vy;
+        c.vy += cfg.explodeGravity;
+        c.vx *= cfg.explodeDrag;
+        c.vy *= cfg.explodeDrag;
+        c.phaseTime++;
+        if (c.phaseTime >= c.explodeFrames) {
+          c.phase = 'HOME';
+          c.startX = c.x;
+          c.startY = c.y;
+          c.homeProgress = 0;
+        }
+      } else {
+        c.homeProgress++;
+        if (!target) {
+          // Target unavailable: collect chip immediately (no animation).
+          if (c.onArrival) arrivedCallbacks.push(c.onArrival);
+          return false;
+        }
+        const t = Math.min(1, c.homeProgress / c.homeFrames);
+        // Cubic ease-in: slow drift, snappy finish.
+        const eased = t * t * t;
+        c.x = c.startX + (target.x - c.startX) * eased;
+        c.y = c.startY + (target.y - c.startY) * eased;
+        c.rotVel *= 1.05;
+        if (t >= 1 || Math.hypot(target.x - c.x, target.y - c.y) < cfg.homeArrivalDistance) {
+          if (c.onArrival) arrivedCallbacks.push(c.onArrival);
+          return false;
+        }
+      }
+      drawChip(c);
+      return true;
+    });
+
+    arrivedCallbacks.forEach(fn => fn());
+  }
+
+  function drawChip(c) {
+    const s = c.size;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(c.rot);
+    const grad = ctx.createLinearGradient(0, -s * 0.6, 0, s * 0.5);
+    grad.addColorStop(0, CONFIG.chips.fillTop);
+    grad.addColorStop(1, CONFIG.chips.fillBottom);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.moveTo(0, -s * 0.6);
+    ctx.lineTo(-s * 0.55, s * 0.45);
+    ctx.lineTo(s * 0.55, s * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = CONFIG.chips.stroke;
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+    // Two short ridge lines for tortilla texture.
+    ctx.strokeStyle = CONFIG.chips.ridge;
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    ctx.moveTo(-s * 0.28, -s * 0.05);
+    ctx.lineTo(s * 0.28, -s * 0.05);
+    ctx.moveTo(-s * 0.18, s * 0.2);
+    ctx.lineTo(s * 0.18, s * 0.2);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -413,8 +526,10 @@ const View = (() => {
   function clearJuice() {
     particles = [];
     popups = [];
+    // Note: chips are intentionally NOT cleared. If the player restarts
+    // mid-flight, those chips still arrive and credit their score.
     shake = { time: 0, magnitude: 0 };
   }
 
-  return { init, render, spawnParticles, spawnPopup, triggerShake, clearJuice };
+  return { init, render, spawnParticles, spawnPopup, triggerShake, clearJuice, spawnChips, setChipsTarget };
 })();

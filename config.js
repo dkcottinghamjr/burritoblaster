@@ -279,6 +279,33 @@ const CONFIG = {
   scoring: {
     twoStarsAtRatio: 1 / 3,
     threeStarsAtRatio: 2 / 3,
+    chipsPerBagMin: 8,
+    chipsPerBagMax: 18,
+    chipsPerBagSizeFactor: 0.3,    // chips ≈ round(bag.size * factor)
+    chipsPerBagSpeedFactor: 0.4,   // + round(speed * factor)
+    chipBonusPerLeftover: 25,      // per surviving burrito on win
+    chipBonusThreeStar: 100,       // extra for a 3-star clear
+  },
+
+  chips: {
+    fillTop: '#f7d160',
+    fillBottom: '#c98a2a',
+    stroke: '#6a3e0e',
+    ridge: '#a06618',
+    sizeMin: 8,
+    sizeMax: 13,
+    explodeSpeedMin: 4,
+    explodeSpeedMax: 10,
+    explodeUpwardBias: 4,
+    explodeGravity: 0.42,
+    explodeDrag: 0.96,
+    explodeFramesMin: 22,
+    explodeFramesMax: 30,
+    homeFramesMin: 30,
+    homeFramesMax: 46,
+    rotVelMax: 0.32,
+    homeArrivalDistance: 14,
+    maxOnscreen: 80,
   },
 
   audio: {
@@ -333,6 +360,7 @@ const CONFIG = {
     bestStarsKey: 'burritoBlaster.bestStars.v2',
     progressKey: 'burritoBlaster.progress.v2',
     muteKey: 'burritoBlaster.muted.v2',
+    chipsKey: 'burritoBlaster.totalChips.v2',
   },
 
   state: {

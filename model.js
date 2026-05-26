@@ -250,6 +250,7 @@ const Model = (() => {
           bagDestroyed: true,
           point: { x: bagBody.position.x, y: bagBody.position.y },
           speed,
+          size: bagBody.size,
         }));
       }
     });

@@ -116,6 +116,49 @@
       letter-spacing: 1px;
     }
     .hud-emoji { font-size: clamp(16px, 2.4vw, 24px); }
+
+    .chips-pill { border-color: #f4c542; }
+    .chip-icon {
+      display: inline-block;
+      width: clamp(14px, 2vw, 20px);
+      height: clamp(13px, 1.9vw, 18px);
+      background: linear-gradient(135deg, #f7d160 0%, #c98a2a 100%);
+      clip-path: polygon(50% 6%, 6% 94%, 94% 94%);
+      filter: drop-shadow(1px 1px 0 #6a3e0e);
+    }
+    #chipsCount {
+      display: inline-block;
+      min-width: 32px;
+      text-align: right;
+      transform-origin: center;
+    }
+    #chipsCount.pulse {
+      animation: chipPulse 300ms ease;
+    }
+    @keyframes chipPulse {
+      0%   { transform: scale(1);   color: #fff45a; text-shadow: 2px 2px 0 #5a1a0a; }
+      35%  { transform: scale(1.35); color: #ffffff; text-shadow: 0 0 12px #fff45a, 2px 2px 0 #5a1a0a; }
+      100% { transform: scale(1);   color: #fff45a; text-shadow: 2px 2px 0 #5a1a0a; }
+    }
+
+    .card .bonus {
+      font-family: 'Bangers', 'Impact', sans-serif;
+      font-size: clamp(20px, 3.4vw, 28px);
+      letter-spacing: 2px;
+      color: #9ee85a;
+      text-shadow: 2px 2px 0 #14280a;
+      margin: 4px 0 6px 0;
+      animation: bonusBob 700ms ease-in-out infinite alternate;
+    }
+    @keyframes bonusBob {
+      0%   { transform: translateY(0); }
+      100% { transform: translateY(-3px); }
+    }
+    .card .run {
+      font-size: clamp(13px, 2vw, 16px);
+      color: #ffeec7;
+      margin: 0 0 6px 0;
+    }
     .hud-center {
       flex: 1 1 auto;
       display: flex;
@@ -377,6 +420,11 @@
             <span id="burritosLeft">3</span>
             <span class="hud-emoji">🌯</span>
           </div>
+          <div class="pill chips-pill">
+            <span class="label">CHIPS</span>
+            <span id="chipsCount">0</span>
+            <span class="chip-icon" aria-hidden="true"></span>
+          </div>
         </div>
         <div class="hud-center">
           <div class="hud-title">BURRITO BLASTER</div>
@@ -397,6 +445,8 @@
           <h1 id="overlayTitle">Level Complete</h1>
           <div id="overlayStars" class="stars">★★★</div>
           <p id="overlaySub">Nice shot, blaster.</p>
+          <p id="overlayRun" class="run">&nbsp;</p>
+          <p id="overlayBonus" class="bonus" style="display:none;"></p>
           <p id="overlayHint" class="hint">&nbsp;</p>
           <div class="buttons">
             <button id="retryBtn">RETRY</button>
