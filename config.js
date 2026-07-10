@@ -271,6 +271,49 @@ const CONFIG = {
     shakeThreshold: 6, // min collision speed to trigger juice
   },
 
+  // Multi-bag-per-shot combo escalation.
+  combo: {
+    words: ['', 'DOUBLE!', 'TRIPLE!', 'RAMPAGE!'],
+    multipliers: [1, 2, 3, 4],
+    pitchStep: 0.22,        // bag-pop pitch rises this much per combo step
+    popupColor: '#7dff5a',
+    popupStroke: '#14400a',
+  },
+
+  // Game-feel time manipulation.
+  feel: {
+    hitstopFrames: 4,       // physics freeze on every bag pop
+    slowmoScale: 0.3,       // engine time scale when the LAST bag pops
+    slowmoDurationMs: 700,
+  },
+
+  // Streak trail behind the flying burrito.
+  trail: {
+    maxPoints: 14,
+    color: '255, 214, 90', // rgb triplet; alpha computed per point
+    maxAlpha: 0.45,
+    minRadius: 3,
+    maxRadius: 10,
+  },
+
+  // Idle re-engagement nudge on the slingshot.
+  nudge: {
+    idleDelayMs: 4000,
+    ringColor: 'rgba(255, 244, 90, 0.9)',
+    ringWidth: 3,
+    text: 'DRAG TO AIM',
+    textColor: '#fff45a',
+    textStroke: '#5a1a0a',
+    font: 'bold 26px "Bangers", "Impact", sans-serif',
+    pulseSpeed: 0.09,
+  },
+
+  // Subtle life on the paper bags so the scene never looks frozen.
+  bagIdle: {
+    breatheAmp: 0.022,
+    breatheSpeed: 0.06,
+  },
+
   /**
    * Stars are awarded based on the ratio of burritos remaining to the
    * level's starting budget. 1 star = won at all, 2 = >=1/3 budget left,
@@ -285,6 +328,7 @@ const CONFIG = {
     chipsPerBagSpeedFactor: 0.4,   // + round(speed * factor)
     chipBonusPerLeftover: 25,      // per surviving burrito on win
     chipBonusThreeStar: 100,       // extra for a 3-star clear
+    countUpMs: 800,                // win-overlay chip tally animation
   },
 
   chips: {
@@ -340,6 +384,15 @@ const CONFIG = {
       blipFreqEnd: 280,
       blipDuration: 0.14,
       blipPeak: 0.34,
+    },
+
+    // Slingshot band creak while stretching (pitch follows tension)
+    creak: {
+      freqBase: 90,
+      freqMax: 230,
+      peak: 0.12,
+      duration: 0.06,
+      stretchStep: 22, // world px of stretch change per creak tick
     },
 
     // Win fanfare (C5 / E5 / G5)

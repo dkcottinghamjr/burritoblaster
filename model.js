@@ -17,6 +17,7 @@ const Model = (() => {
   let levelIndex = 0;
   let state = 'READY'; // READY | AIMING | FLYING | WAITING | WIN | LOSE
   let stopFrames = 0;
+  let shotBagCount = 0; // bags destroyed by the current shot (combo counter)
   let collisionListeners = [];
 
   function init(idx = 0) {
@@ -34,6 +35,7 @@ const Model = (() => {
     burritosLeft = level.burritos;
     state = 'READY';
     stopFrames = 0;
+    shotBagCount = 0;
     collisionListeners = [];
     blocks = [];
     bags = [];
@@ -150,6 +152,7 @@ const Model = (() => {
       y: dy * CONFIG.slingshot.velocityMultiplier,
     });
     burritosLeft -= 1;
+    shotBagCount = 0;
     state = 'FLYING';
     return true;
   }
@@ -246,11 +249,14 @@ const Model = (() => {
       if (bagBody && bagBody.alive && speed >= CONFIG.bag.destroyThreshold) {
         bagBody.alive = false;
         World.remove(world, bagBody);
+        shotBagCount += 1;
         collisionListeners.forEach(fn => fn({
           bagDestroyed: true,
           point: { x: bagBody.position.x, y: bagBody.position.y },
           speed,
           size: bagBody.size,
+          combo: shotBagCount,
+          bagsRemaining: bags.filter(b => b.alive).length,
         }));
       }
     });
@@ -268,6 +274,8 @@ const Model = (() => {
     getBurrito: () => burrito,
     getBlocks: () => blocks,
     getBags: () => bags,
+    getBagsRemaining: () => bags.filter(b => b.alive).length,
+    setTimeScale: s => { if (engine) engine.timing.timeScale = s; },
     getBurritosLeft: () => burritosLeft,
     getBurritosStart: () => burritosStart,
     getLevelIndex: () => levelIndex,

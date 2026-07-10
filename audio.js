@@ -125,17 +125,20 @@ const Audio = (() => {
     src.stop(now + dur + 0.02);
   }
 
-  function bag() {
+  function bag(combo) {
     if (!ready()) return;
     const cfg = CONFIG.audio.bag;
     const now = ctx.currentTime;
+    // Combo escalation: every extra bag in the same shot raises the pitch,
+    // which is the classic "streak" audio hook.
+    const pitch = 1 + CONFIG.combo.pitchStep * Math.max(0, (combo || 1) - 1);
 
     // Crinkly band-pass noise burst
     const src = ctx.createBufferSource();
     src.buffer = noiseBuffer(cfg.noiseDuration);
     const filter = ctx.createBiquadFilter();
     filter.type = 'bandpass';
-    filter.frequency.value = cfg.noiseCenterHz;
+    filter.frequency.value = cfg.noiseCenterHz * pitch;
     filter.Q.value = cfg.noiseQ;
     const g1 = envGain(cfg.noisePeak, 0.005, 0.025, cfg.noiseDuration - 0.03, now);
     src.connect(filter).connect(g1).connect(master);
@@ -145,12 +148,28 @@ const Audio = (() => {
     // Descending sine "boop" gives the satisfying tail
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(cfg.blipFreq, now);
-    osc.frequency.exponentialRampToValueAtTime(cfg.blipFreqEnd, now + cfg.blipDuration);
+    osc.frequency.setValueAtTime(cfg.blipFreq * pitch, now);
+    osc.frequency.exponentialRampToValueAtTime(cfg.blipFreqEnd * pitch, now + cfg.blipDuration);
     const g2 = envGain(cfg.blipPeak, 0.005, 0.04, cfg.blipDuration - 0.045, now);
     osc.connect(g2).connect(master);
     osc.start(now);
     osc.stop(now + cfg.blipDuration + 0.02);
+  }
+
+  function creak(tension) {
+    if (!ready()) return;
+    const cfg = CONFIG.audio.creak;
+    const t = Math.max(0, Math.min(1, tension || 0));
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    osc.type = 'triangle';
+    const freq = cfg.freqBase + (cfg.freqMax - cfg.freqBase) * t;
+    osc.frequency.setValueAtTime(freq, now);
+    osc.frequency.linearRampToValueAtTime(freq * 1.18, now + cfg.duration);
+    const g = envGain(cfg.peak * (0.5 + 0.5 * t), 0.004, 0.01, cfg.duration - 0.014, now);
+    osc.connect(g).connect(master);
+    osc.start(now);
+    osc.stop(now + cfg.duration + 0.02);
   }
 
   function chord(notes, step, type, peak, release) {
@@ -196,5 +215,5 @@ const Audio = (() => {
     chord(c.notes, c.step, c.type, c.peak, c.release);
   }
 
-  return { unlock, setMuted, isMuted, launch, impact, bag, tink, win, lose };
+  return { unlock, setMuted, isMuted, launch, impact, bag, creak, tink, win, lose };
 })();

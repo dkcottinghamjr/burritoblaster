@@ -17,6 +17,11 @@ const Controller = (() => {
   let totalChips = 0;
   let runChips = 0;
   let pulseClearTimer = null;
+  let hitstopFrames = 0;
+  let slowmoTimer = null;
+  let lastInteraction = 0;
+  let lastCreakStretch = 0;
+  let countUpRaf = null;
   const FIXED_DT = 1000 / 60;
   const ui = {};
 
@@ -41,6 +46,9 @@ const Controller = (() => {
     ui.chipsCount = document.getElementById('chipsCount');
     ui.overlayBonus = document.getElementById('overlayBonus');
     ui.overlayRun = document.getElementById('overlayRun');
+    ui.overlayNewBest = document.getElementById('overlayNewBest');
+    ui.paceStars = document.getElementById('paceStars');
+    ui.menuTotalStars = document.getElementById('menuTotalStars');
 
     bestStarsByLevel = loadBest();
     currentLevel = clampLevel(loadProgress());
@@ -103,6 +111,7 @@ const Controller = (() => {
     renderChipsText();
     running = true;
     lastTime = performance.now();
+    lastInteraction = lastTime;
     requestAnimationFrame(loop);
   }
 
@@ -153,12 +162,14 @@ const Controller = (() => {
   }
 
   function onPointerDown(p) {
+    lastInteraction = performance.now();
     if (Model.getState() !== 'READY') return false;
     const b = Model.getBurrito();
     if (!b) return false;
     const d = Math.hypot(p.x - b.position.x, p.y - b.position.y);
     if (d <= CONFIG.slingshot.pickRadius) {
       aiming = Model.startAim();
+      lastCreakStretch = 0;
       return aiming;
     }
     return false;
@@ -167,9 +178,24 @@ const Controller = (() => {
   function onPointerMove(p) {
     if (!aiming) return;
     Model.updateAim(p.x, p.y);
+    lastInteraction = performance.now();
+
+    // Band-tension creaks: a tick each time the stretch changes enough.
+    const b = Model.getBurrito();
+    if (b) {
+      const stretch = Math.hypot(
+        b.position.x - CONFIG.slingshot.anchorX,
+        b.position.y - CONFIG.slingshot.anchorY
+      );
+      if (Math.abs(stretch - lastCreakStretch) >= CONFIG.audio.creak.stretchStep) {
+        lastCreakStretch = stretch;
+        Audio.creak(stretch / CONFIG.slingshot.maxStretch);
+      }
+    }
   }
 
   function onPointerUp() {
+    lastInteraction = performance.now();
     if (!aiming) return;
     aiming = false;
     const launched = Model.release();
@@ -181,15 +207,37 @@ const Controller = (() => {
 
   function onCollision(info) {
     if (info.bagDestroyed) {
-      const words = CONFIG.popups.words;
-      const word = words[Math.floor(Math.random() * words.length)];
-      View.spawnPopup(info.point.x, info.point.y, word);
+      const combo = info.combo || 1;
+      const comboIdx = Math.min(combo - 1, CONFIG.combo.multipliers.length - 1);
+      const mult = CONFIG.combo.multipliers[comboIdx];
+
+      // First bag of a shot gets a normal word; every extra bag escalates
+      // ("DOUBLE! ×2", "TRIPLE! ×3", ...) in a distinct color.
+      if (combo === 1) {
+        const words = CONFIG.popups.words;
+        const word = words[Math.floor(Math.random() * words.length)];
+        View.spawnPopup(info.point.x, info.point.y, word);
+      } else {
+        const word = CONFIG.combo.words[comboIdx] + ' ×' + mult;
+        View.spawnPopup(info.point.x, info.point.y, word, CONFIG.combo.popupColor, CONFIG.combo.popupStroke);
+      }
+
       View.spawnParticles(info.point.x, info.point.y, 'salsa', CONFIG.particles.countOnBag);
       View.triggerShake(CONFIG.screenShake.bagMagnitude, CONFIG.screenShake.duration);
-      Audio.bag();
+      Audio.bag(combo);
       Haptics.bag();
+
+      // Game feel: a few frames of hitstop on every pop; dramatic slow-mo
+      // when the shot clears the final bag.
+      hitstopFrames = CONFIG.feel.hitstopFrames;
+      if (info.bagsRemaining === 0) {
+        Model.setTimeScale(CONFIG.feel.slowmoScale);
+        clearTimeout(slowmoTimer);
+        slowmoTimer = setTimeout(() => Model.setTimeScale(1), CONFIG.feel.slowmoDurationMs);
+      }
+
       // Chips burst from the bag and fly into the HUD score counter.
-      const chipCount = computeChipCount(info.size, info.speed);
+      const chipCount = computeChipCount(info.size, info.speed) * mult;
       View.spawnChips(info.point.x, info.point.y, chipCount, onChipArrival);
       return;
     }
@@ -320,6 +368,42 @@ const Controller = (() => {
     try { return n.toLocaleString(); } catch (_) { return String(n); }
   }
 
+  function animateRunChips(target) {
+    if (!ui.overlayRun) return;
+    cancelAnimationFrame(countUpRaf);
+    const dur = CONFIG.scoring.countUpMs;
+    const start = performance.now();
+    const step = now => {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = 1 - Math.pow(1 - t, 3);
+      ui.overlayRun.textContent = `Chips this run: ${formatChips(Math.round(target * eased))}`;
+      if (t < 1) countUpRaf = requestAnimationFrame(step);
+      else Audio.tink();
+    };
+    countUpRaf = requestAnimationFrame(step);
+  }
+
+  /**
+   * A level is unlocked if it's the first, or any earlier level has been
+   * cleared up to just before it. Keyboard 1-5 intentionally bypasses this
+   * (dev shortcut); the tap UI enforces it.
+   */
+  function highestUnlocked() {
+    let maxUnlocked = 0;
+    for (let i = 0; i < CONFIG.levels.length; i++) {
+      if ((bestStarsByLevel[i] || 0) > 0) maxUnlocked = Math.min(i + 1, CONFIG.levels.length - 1);
+    }
+    return maxUnlocked;
+  }
+
+  function totalStarsEarned() {
+    let sum = 0;
+    for (let i = 0; i < CONFIG.levels.length; i++) {
+      sum += Math.min(3, bestStarsByLevel[i] || 0);
+    }
+    return sum;
+  }
+
   function applyMute(m) {
     Audio.setMuted(m);
     Haptics.setMuted(m);
@@ -340,12 +424,20 @@ const Controller = (() => {
     ui.burritosLeft.textContent = Model.getBurritosLeft();
     ui.bestStars.textContent = renderStars(bestStarsByLevel[idx] || 0);
     ui.levelLabel.textContent = `LEVEL ${idx + 1} / ${count} · ${level.name.toUpperCase()}`;
+    // Live pace: the stars you'd earn if you cleared right now. Watching
+    // a star at risk of dimming is a reason to make each shot count.
+    if (ui.paceStars) {
+      const s = Model.getState();
+      const active = s === 'READY' || s === 'AIMING' || s === 'FLYING' || s === 'WAITING';
+      ui.paceStars.textContent = active ? renderStars(computeStars()) : '';
+    }
   }
 
   function showWinOverlay() {
     const idx = Model.getLevelIndex();
     const isLast = idx >= Model.getLevelCount() - 1;
     const stars = computeStars();
+    const prevBest = bestStarsByLevel[idx] || 0;
     saveBest(idx, stars);
 
     const bonus = Model.getBurritosLeft() * CONFIG.scoring.chipBonusPerLeftover
@@ -356,7 +448,13 @@ const Controller = (() => {
     ui.overlaySub.textContent = `Burritos remaining: ${Model.getBurritosLeft()} / ${Model.getBurritosStart()}`;
     ui.overlayStars.textContent = renderStars(stars);
     ui.overlayStars.style.display = '';
-    if (ui.overlayRun) ui.overlayRun.textContent = `Chips this run: ${formatChips(runChips)}`;
+    if (ui.overlayNewBest) {
+      // Only celebrate an improvement over a previous clear — the first
+      // clear is already its own celebration.
+      const isNewBest = prevBest > 0 && stars > prevBest;
+      ui.overlayNewBest.style.display = isNewBest ? '' : 'none';
+    }
+    animateRunChips(runChips);
     if (ui.overlayBonus) {
       ui.overlayBonus.textContent = bonus > 0 ? `BONUS +${formatChips(bonus)} CHIPS` : '';
       ui.overlayBonus.style.display = bonus > 0 ? '' : 'none';
@@ -373,9 +471,13 @@ const Controller = (() => {
   }
 
   function showLoseOverlay() {
-    ui.overlayTitle.textContent = 'OUT OF BURRITOS!';
-    ui.overlaySub.textContent = 'The bags survived.';
+    const bagsLeft = Model.getBagsRemaining();
+    ui.overlayTitle.textContent = bagsLeft === 1 ? 'SO CLOSE!' : 'OUT OF BURRITOS!';
+    ui.overlaySub.textContent = bagsLeft === 1
+      ? 'Only one bag survived. One more shot would do it...'
+      : `${bagsLeft} bags survived.`;
     ui.overlayStars.style.display = 'none';
+    if (ui.overlayNewBest) ui.overlayNewBest.style.display = 'none';
     if (ui.overlayRun) ui.overlayRun.textContent = runChips > 0 ? `You still pocketed ${formatChips(runChips)} chips.` : '';
     if (ui.overlayBonus) {
       ui.overlayBonus.textContent = '';
@@ -403,21 +505,30 @@ const Controller = (() => {
 
   function renderLevelList() {
     ui.levelList.innerHTML = '';
+    const unlockedThrough = highestUnlocked();
+    if (ui.menuTotalStars) {
+      ui.menuTotalStars.textContent = `★ ${totalStarsEarned()} / ${CONFIG.levels.length * 3}`;
+    }
     CONFIG.levels.forEach((level, i) => {
+      const locked = i > unlockedThrough;
       const li = document.createElement('li');
-      li.className = 'level-row' + (i === currentLevel ? ' current' : '');
+      li.className = 'level-row'
+        + (i === currentLevel ? ' current' : '')
+        + (locked ? ' locked' : '');
       const stars = bestStarsByLevel[i] || 0;
       li.innerHTML = `
         <span class="level-num">${i + 1}</span>
         <span class="level-name">${level.name}</span>
-        <span class="level-stars">${renderStars(stars)}</span>
+        <span class="level-stars">${locked ? '🔒' : renderStars(stars)}</span>
       `;
-      li.addEventListener('click', () => {
-        closeMenu();
-        hideOverlay();
-        saveProgress(i);
-        restartGame(i);
-      });
+      if (!locked) {
+        li.addEventListener('click', () => {
+          closeMenu();
+          hideOverlay();
+          saveProgress(i);
+          restartGame(i);
+        });
+      }
       ui.levelList.appendChild(li);
     });
   }
@@ -431,6 +542,9 @@ const Controller = (() => {
     aiming = false;
     activePointerId = null;
     runChips = 0;
+    hitstopFrames = 0;
+    clearTimeout(slowmoTimer);
+    lastInteraction = performance.now();
     updateHUD();
     renderChipsText();
   }
@@ -448,12 +562,24 @@ const Controller = (() => {
     lastTime = now;
     accumulator += elapsed;
 
-    let steps = 0;
-    while (accumulator >= FIXED_DT && steps < 5) {
-      Model.tick();
-      accumulator -= FIXED_DT;
-      steps++;
+    if (hitstopFrames > 0) {
+      // Hitstop: freeze physics for a few frames on big hits (render
+      // continues, so the shake still sells the impact).
+      hitstopFrames--;
+      accumulator = 0;
+    } else {
+      let steps = 0;
+      while (accumulator >= FIXED_DT && steps < 5) {
+        Model.tick();
+        accumulator -= FIXED_DT;
+        steps++;
+      }
     }
+
+    View.setNudgeVisible(
+      Model.getState() === 'READY'
+      && now - lastInteraction > CONFIG.nudge.idleDelayMs
+    );
 
     View.render();
     updateHUD();

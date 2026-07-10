@@ -8,7 +8,10 @@ const View = (() => {
   let particles = [];
   let popups = [];
   let chips = [];
+  let trail = [];
   let chipTargetProvider = null;
+  let nudgeVisible = false;
+  let frame = 0;
   let shake = { time: 0, magnitude: 0 };
 
   function init(canvasEl) {
@@ -63,6 +66,7 @@ const View = (() => {
       if (shake.time <= 0) { shake.time = 0; shake.magnitude = 0; }
     }
 
+    frame++;
     drawSky(w, h);
     drawGround(w, h);
     drawSlingshotBack();
@@ -70,13 +74,64 @@ const View = (() => {
     drawBlocks();
     drawBags();
     drawElasticBack();
+    drawTrail();
     drawBurrito();
     drawElasticFront();
+    drawNudge();
     drawParticles();
     updateAndDrawChips();
     drawPopups();
 
     ctx.restore();
+  }
+
+  function drawTrail() {
+    const b = Model.getBurrito();
+    if (Model.getState() === 'FLYING' && b) {
+      trail.push({ x: b.position.x, y: b.position.y });
+      if (trail.length > CONFIG.trail.maxPoints) trail.shift();
+    } else if (trail.length) {
+      // Fade the tail out once the flight ends instead of popping it.
+      trail.shift();
+    }
+    const n = trail.length;
+    for (let i = 0; i < n; i++) {
+      const t = (i + 1) / n;
+      ctx.fillStyle = `rgba(${CONFIG.trail.color}, ${CONFIG.trail.maxAlpha * t})`;
+      const r = CONFIG.trail.minRadius + (CONFIG.trail.maxRadius - CONFIG.trail.minRadius) * t;
+      ctx.beginPath();
+      ctx.arc(trail[i].x, trail[i].y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function setNudgeVisible(v) { nudgeVisible = v; }
+
+  function drawNudge() {
+    if (!nudgeVisible) return;
+    const b = Model.getBurrito();
+    if (!b || Model.getState() !== 'READY') return;
+    const cfg = CONFIG.nudge;
+    const pulse = Math.sin(frame * cfg.pulseSpeed);
+    const r = CONFIG.burrito.radius + 14 + pulse * 5;
+
+    ctx.strokeStyle = cfg.ringColor;
+    ctx.lineWidth = cfg.ringWidth;
+    ctx.globalAlpha = 0.65 + 0.35 * pulse;
+    ctx.beginPath();
+    ctx.arc(b.position.x, b.position.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    ctx.font = cfg.font;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = cfg.textStroke;
+    const ty = b.position.y - r - 14 + pulse * 2;
+    ctx.strokeText(cfg.text, b.position.x, ty);
+    ctx.fillStyle = cfg.textColor;
+    ctx.fillText(cfg.text, b.position.x, ty);
   }
 
   function setChipsTarget(provider) {
@@ -369,6 +424,9 @@ const View = (() => {
       ctx.save();
       ctx.translate(b.position.x, b.position.y);
       ctx.rotate(b.angle);
+      // Subtle "breathing" so bags read as alive, tempting targets.
+      const breathe = 1 + CONFIG.bagIdle.breatheAmp * Math.sin(frame * CONFIG.bagIdle.breatheSpeed + b.id);
+      ctx.scale(breathe, 1 / breathe);
 
       // Body — slightly trapezoidal, wider at the top opening.
       ctx.fillStyle = CONFIG.bag.paperColor;
@@ -489,8 +547,8 @@ const View = (() => {
     ctx.globalAlpha = 1;
   }
 
-  function spawnPopup(x, y, text) {
-    popups.push({ x, y, text, life: CONFIG.popups.life, maxLife: CONFIG.popups.life });
+  function spawnPopup(x, y, text, color, stroke) {
+    popups.push({ x, y, text, color, stroke, life: CONFIG.popups.life, maxLife: CONFIG.popups.life });
   }
 
   function drawPopups() {
@@ -508,9 +566,9 @@ const View = (() => {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.lineWidth = 6;
-      ctx.strokeStyle = CONFIG.popups.stroke;
+      ctx.strokeStyle = p.stroke || CONFIG.popups.stroke;
       ctx.strokeText(p.text, 0, 0);
-      ctx.fillStyle = CONFIG.popups.color;
+      ctx.fillStyle = p.color || CONFIG.popups.color;
       ctx.fillText(p.text, 0, 0);
       ctx.restore();
       return true;
@@ -526,10 +584,11 @@ const View = (() => {
   function clearJuice() {
     particles = [];
     popups = [];
+    trail = [];
     // Note: chips are intentionally NOT cleared. If the player restarts
     // mid-flight, those chips still arrive and credit their score.
     shake = { time: 0, magnitude: 0 };
   }
 
-  return { init, render, spawnParticles, spawnPopup, triggerShake, clearJuice, spawnChips, setChipsTarget };
+  return { init, render, spawnParticles, spawnPopup, triggerShake, clearJuice, spawnChips, setChipsTarget, setNudgeVisible };
 })();
