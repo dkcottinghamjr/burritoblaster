@@ -1,0 +1,10 @@
+{
+  "name": "burrito-blaster",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Physics-based slingshot game prototype (Matter.js via CDN, vanilla JS, strict MVC). No build step or dependencies required.",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  }
+}
